@@ -887,14 +887,7 @@
     }
     formAnimRaf = requestAnimationFrame(stepFormAnimation);
   }
-
-    // Ping-pong with slight hold at Start (0) and Peak (1)
-    const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
-    const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
-    renderStickmanFrame(activeFormRig, t);
-    formAnimRaf = requestAnimationFrame(stepFormAnimation);
-  }
-
+  
   function openExerciseFormModal(exerciseId) {
     const ex = getExerciseById(exerciseId);
     if (!ex) return;
