@@ -999,3 +999,10 @@ h3 { font-size: 15px; font-weight: 700; }
 .form-cues li {
   line-height: 1.4;
 }
+
+button.card,
+.card {
+  color: var(--text);
+  font-family: inherit;
+}
+
