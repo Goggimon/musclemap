@@ -881,7 +881,13 @@
 
     if (formAnimPlaying) {
       formAnimPhase = (formAnimPhase + dt * 0.45 * formAnimSpeed) % 1;
+      const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
+      const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
+      renderStickmanFrame(activeFormRig, t);
     }
+    formAnimRaf = requestAnimationFrame(stepFormAnimation);
+  }
+
     // Ping-pong with slight hold at Start (0) and Peak (1)
     const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
     const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
@@ -2049,13 +2055,15 @@
       formAnimPlaying = !formAnimPlaying;
       document.getElementById("btn-form-play").textContent = formAnimPlaying ? "Pause" : "Play";
     });
-    document.getElementById("btn-form-start").addEventListener("click", () => {
+   document.getElementById("btn-form-start").addEventListener("click", () => {
       formAnimPlaying = false;
+      formAnimPhase = 0;
       document.getElementById("btn-form-play").textContent = "Play";
       renderStickmanFrame(activeFormRig, 0);
     });
-    document.getElementById("btn-form-peak").addEventListener("click", () => {
+     document.getElementById("btn-form-peak").addEventListener("click", () => {
       formAnimPlaying = false;
+      formAnimPhase = 0.5;
       document.getElementById("btn-form-play").textContent = "Play";
       renderStickmanFrame(activeFormRig, 1);
     });
