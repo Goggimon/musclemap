@@ -1,10 +1,20 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v4.0";
+  const APP_VERSION = "v4.1";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v4.1",
+      date: "2026-11-15",
+      items: [
+        "Sculpted 3D athlete anatomy: detailed head (jaw, brow, nose, eyes, ears), articulated hands gripping bars/handles, and 17 distinct muscle groups",
+        "Intensity-based muscle highlighting: Primary muscles (1.0x) glow red while Secondary muscles (0.5x) glow amber-orange",
+        "Animated machine-specific rigs: swinging Pec Deck arms, Chest/Shoulder Press levers, Lat Pulldown bar + thigh pads + moving weight stack, Leg Ext/Curl rotating ankle rollers, and 45° Leg Press sled",
+        "Full 3D curved movement trajectories with directional cones and green spine posture lines on every exercise"
+      ]
+    },
     {
       version: "v4.0",
       date: "2026-11-15",
@@ -1348,7 +1358,7 @@
     const wrap3d = document.getElementById("form-3d-wrap");
     const camBar = document.getElementById("form-cam-bar");
     const svg2d = document.getElementById("form-stickman-svg");
-    using3DForm = Boolean(canvas3d && window.MuscleMap3D && window.MuscleMap3D.loadExercise(canvas3d, rigKey, ex.primary));
+    using3DForm = Boolean(canvas3d && window.MuscleMap3D && window.MuscleMap3D.loadExercise(canvas3d, rigKey, ex.primary, ex.secondary, ex.id));
 
     if (using3DForm) {
       wrap3d?.classList.remove("hidden");
@@ -1756,7 +1766,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v4.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v4.1)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
