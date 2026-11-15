@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0f17" />
+  <meta name="theme-color" content="#0b0c0e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>MUSCLEMAP — Personal Gym &amp; Muscle Analytics</title>
   <link rel="manifest" href="manifest.json" />
@@ -19,7 +19,7 @@
         <span class="brand-mark">M</span>
         <div class="brand-text">
           <span class="brand-name">MUSCLEMAP</span>
-          <span class="brand-tag">PERSONAL TRACKER</span>
+          <span class="brand-tag">TRAINING LOG</span>
         </div>
       </div>
       <div class="top-actions">
@@ -35,49 +35,121 @@
 
     <!-- Main Scrollable Content -->
     <main class="main-content">
-      <!-- 1. DASHBOARD VIEW -->
+      <!-- 1. DASHBOARD VIEW (3 FOCUSED PRESETS) -->
       <section id="view-dashboard" class="view active">
-        <div class="hero-card">
-          <div class="hero-top">
-            <div>
-              <p class="eyebrow">Ready to train</p>
-              <h1 id="dash-greeting">Welcome</h1>
-            </div>
-            <button id="btn-dash-start" class="btn btn-primary" type="button">
-              + Start Workout
-            </button>
+        <div class="dash-top-bar">
+          <div>
+            <p class="eyebrow">Training Home</p>
+            <h1 id="dash-greeting">Welcome</h1>
           </div>
-          <div class="kpi-grid">
-            <div class="kpi-box">
-              <span class="kpi-label">7d Workouts</span>
-              <strong id="kpi-workouts-7d" class="kpi-value">0</strong>
-            </div>
-            <div class="kpi-box">
-              <span class="kpi-label">7d Volume</span>
-              <strong id="kpi-volume-7d" class="kpi-value">0 kg</strong>
-            </div>
-            <div class="kpi-box">
-              <span class="kpi-label">Total Sets (7d)</span>
-              <strong id="kpi-sets-7d" class="kpi-value">0</strong>
-            </div>
+          <div class="segmented" role="tablist" aria-label="Dashboard preset">
+            <button class="seg-btn dash-preset-btn active" type="button" data-preset="overview">Overview</button>
+            <button class="seg-btn dash-preset-btn" type="button" data-preset="training">Training</button>
+            <button class="seg-btn dash-preset-btn" type="button" data-preset="analytics">Analytics</button>
           </div>
         </div>
 
-        <!-- Smart Muscle Focus Suggestion -->
-        <div id="dash-focus-banner" class="card focus-banner"></div>
+        <!-- PRESET 1: OVERVIEW -->
+        <div id="dash-preset-overview" class="dash-preset active">
+          <div class="dash-grid">
+            <div class="card">
+              <div class="hero-top">
+                <div>
+                  <span class="eyebrow">Session</span>
+                  <h2 id="dash-session-heading">Ready to train</h2>
+                </div>
+                <button id="btn-dash-start" class="btn btn-primary" type="button">+ Start Workout</button>
+              </div>
+              <div class="kpi-grid">
+                <div class="kpi-box">
+                  <span class="kpi-label">7D Sessions</span>
+                  <strong id="kpi-workouts-7d" class="kpi-value">0</strong>
+                </div>
+                <div class="kpi-box">
+                  <span class="kpi-label">7D Volume</span>
+                  <strong id="kpi-volume-7d" class="kpi-value">0 kg</strong>
+                </div>
+                <div class="kpi-box">
+                  <span class="kpi-label">7D Sets</span>
+                  <strong id="kpi-sets-7d" class="kpi-value">0</strong>
+                </div>
+              </div>
+            </div>
 
-        <!-- Muscle Group Day Recommendations -->
-        <div class="section-header">
-          <h2>Recommended Day Splits</h2>
-          <span class="muted-note">Tap to preview or start</span>
+            <div class="card-stack">
+              <div id="dash-focus-banner" class="card focus-banner"></div>
+              <button class="card quick-link-row" type="button" data-nav="anatomy">
+                <div>
+                  <span class="eyebrow">Muscle Stimulus</span>
+                  <strong id="dash-stimulus-summary">View 7-day anatomical heatmap</strong>
+                </div>
+                <span class="muted-note">Map &rarr;</span>
+              </button>
+              <button class="card quick-link-row" type="button" data-nav="analytics">
+                <div>
+                  <span class="eyebrow">Personal Records</span>
+                  <strong id="dash-pr-summary">View 1RM progression &amp; charts</strong>
+                </div>
+                <span class="muted-note">Stats &rarr;</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <div id="dash-recommendations" class="horizontal-scroll"></div>
 
-        <div class="section-header">
-          <h2>Your Recent Workouts</h2>
-          <button class="link-btn" type="button" data-nav="analytics">View all</button>
+        <!-- PRESET 2: TRAINING -->
+        <div id="dash-preset-training" class="dash-preset">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="hero-top" style="margin-bottom:0;">
+              <div>
+                <span class="eyebrow">Quick Actions</span>
+                <h2>Start or Build a Session</h2>
+              </div>
+              <div class="btn-row">
+                <button id="btn-dash-blank" class="btn btn-primary btn-sm" type="button">+ Blank Workout</button>
+                <button class="btn btn-secondary btn-sm" type="button" data-nav="workout">Routines</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <h2>Recommended Day Splits</h2>
+            <span class="muted-note">Tap to preview or start</span>
+          </div>
+          <div id="dash-recommendations" class="horizontal-scroll"></div>
+
+          <div class="section-header">
+            <h2>Recent Sessions</h2>
+            <button class="link-btn" type="button" data-nav="analytics">Full history</button>
+          </div>
+          <div id="dash-recent-workouts" class="card-stack"></div>
         </div>
-        <div id="dash-recent-workouts" class="card-stack"></div>
+
+        <!-- PRESET 3: ANALYTICS -->
+        <div id="dash-preset-analytics" class="dash-preset">
+          <div class="dash-grid">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">7-Day Stimulus</span>
+                  <h2>Top Trained Muscles</h2>
+                </div>
+                <button class="link-btn" type="button" data-nav="anatomy">Open Map</button>
+              </div>
+              <div id="dash-top-muscles" class="card-stack" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Strength</span>
+                  <h2>Top Personal Records</h2>
+                </div>
+                <button class="link-btn" type="button" data-nav="analytics">Full Charts</button>
+              </div>
+              <div id="dash-top-prs" class="card-stack" style="margin-top:10px;"></div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 2. ANATOMICAL HEATMAP VIEW -->

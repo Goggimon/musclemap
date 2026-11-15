@@ -641,8 +641,8 @@
     return {
       activeProfileId: "u1",
       profiles: [
-        { id: "u1", name: "Person 1", color: "#38bdf8" },
-        { id: "u2", name: "Person 2", color: "#a855f7" }
+        { id: "u1", name: "Person 1", color: "#dc2626" },
+        { id: "u2", name: "Person 2", color: "#9ca3af" }
       ],
       bodyProfiles: {
         u1: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" },
@@ -658,6 +658,7 @@
 
   let state = loadState();
   let currentView = "dashboard";
+  let currentDashPreset = "overview";
   let currentSide = "front";
   let currentWindow = "7";
   let selectedMuscle = null;
@@ -785,50 +786,50 @@
   }
 
   function drawEquipmentSvg(equip, wr) {
-    let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#27324a" stroke-width="2" stroke-linecap="round"/>`;
+    let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#262a34" stroke-width="2" stroke-linecap="round"/>`;
     if (equip === "bench_flat") {
       html += `
-        <rect x="46" y="106" width="96" height="8" rx="3" fill="#222c42" stroke="#3b4968" stroke-width="1"/>
-        <line x1="58" y1="114" x2="58" y2="152" stroke="#3b4968" stroke-width="3"/>
-        <line x1="130" y1="114" x2="130" y2="152" stroke="#3b4968" stroke-width="3"/>`;
+        <rect x="46" y="106" width="96" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
+        <line x1="58" y1="114" x2="58" y2="152" stroke="#3a404d" stroke-width="3"/>
+        <line x1="130" y1="114" x2="130" y2="152" stroke="#3a404d" stroke-width="3"/>`;
     } else if (equip === "bench_incline") {
       html += `
-        <line x1="62" y1="62" x2="112" y2="118" stroke="#3b4968" stroke-width="8" stroke-linecap="round"/>
-        <line x1="112" y1="122" x2="144" y2="122" stroke="#3b4968" stroke-width="7" stroke-linecap="round"/>
-        <line x1="86" y1="92" x2="86" y2="152" stroke="#3b4968" stroke-width="3"/>
-        <line x1="134" y1="125" x2="134" y2="152" stroke="#3b4968" stroke-width="3"/>`;
+        <line x1="62" y1="62" x2="112" y2="118" stroke="#3a404d" stroke-width="8" stroke-linecap="round"/>
+        <line x1="112" y1="122" x2="144" y2="122" stroke="#3a404d" stroke-width="7" stroke-linecap="round"/>
+        <line x1="86" y1="92" x2="86" y2="152" stroke="#3a404d" stroke-width="3"/>
+        <line x1="134" y1="125" x2="134" y2="152" stroke="#3a404d" stroke-width="3"/>`;
     } else if (equip === "pullup_bar") {
       html += `
-        <line x1="70" y1="26" x2="150" y2="26" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
-        <line x1="72" y1="26" x2="72" y2="152" stroke="#27324a" stroke-width="2"/>
-        <line x1="148" y1="26" x2="148" y2="152" stroke="#27324a" stroke-width="2"/>`;
+        <line x1="70" y1="26" x2="150" y2="26" stroke="#6b7280" stroke-width="4" stroke-linecap="round"/>
+        <line x1="72" y1="26" x2="72" y2="152" stroke="#262a34" stroke-width="2"/>
+        <line x1="148" y1="26" x2="148" y2="152" stroke="#262a34" stroke-width="2"/>`;
     } else if (equip === "dip_bars") {
       html += `
-        <line x1="84" y1="92" x2="132" y2="92" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
-        <line x1="90" y1="92" x2="90" y2="152" stroke="#3b4968" stroke-width="3"/>
-        <line x1="126" y1="92" x2="126" y2="152" stroke="#3b4968" stroke-width="3"/>`;
+        <line x1="84" y1="92" x2="132" y2="92" stroke="#6b7280" stroke-width="4" stroke-linecap="round"/>
+        <line x1="90" y1="92" x2="90" y2="152" stroke="#3a404d" stroke-width="3"/>
+        <line x1="126" y1="92" x2="126" y2="152" stroke="#3a404d" stroke-width="3"/>`;
     } else if (equip === "machine_seat") {
       html += `
-        <rect x="88" y="44" width="8" height="64" rx="3" fill="#222c42" stroke="#3b4968" stroke-width="1"/>
-        <rect x="88" y="106" width="44" height="8" rx="3" fill="#222c42" stroke="#3b4968" stroke-width="1"/>
-        <line x1="102" y1="114" x2="102" y2="152" stroke="#3b4968" stroke-width="3"/>`;
+        <rect x="88" y="44" width="8" height="64" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
+        <rect x="88" y="106" width="44" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
+        <line x1="102" y1="114" x2="102" y2="152" stroke="#3a404d" stroke-width="3"/>`;
     } else if (equip === "lat_machine") {
       html += `
-        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 2"/>
-        <line x1="70" y1="14" x2="156" y2="14" stroke="#3b4968" stroke-width="4" stroke-linecap="round"/>
-        <rect x="88" y="108" width="44" height="8" rx="3" fill="#222c42" stroke="#3b4968" stroke-width="1"/>
-        <line x1="104" y1="116" x2="104" y2="152" stroke="#3b4968" stroke-width="3"/>`;
+        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <line x1="70" y1="14" x2="156" y2="14" stroke="#3a404d" stroke-width="4" stroke-linecap="round"/>
+        <rect x="88" y="108" width="44" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
+        <line x1="104" y1="116" x2="104" y2="152" stroke="#3a404d" stroke-width="3"/>`;
     } else if (equip === "cable_high" || equip === "cable_mid") {
       const py = equip === "cable_high" ? 36 : 78;
       html += `
-        <line x1="36" y1="20" x2="36" y2="152" stroke="#3b4968" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="36" cy="${py}" r="4" fill="#38bdf8"/>
-        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+        <line x1="36" y1="20" x2="36" y2="152" stroke="#3a404d" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="36" cy="${py}" r="4" fill="#dc2626"/>
+        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>`;
     } else if (equip === "leg_press") {
       html += `
-        <line x1="50" y1="74" x2="88" y2="122" stroke="#3b4968" stroke-width="8" stroke-linecap="round"/>
-        <line x1="88" y1="124" x2="116" y2="124" stroke="#3b4968" stroke-width="7" stroke-linecap="round"/>
-        <line x1="138" y1="102" x2="174" y2="68" stroke="#27324a" stroke-width="3"/>`;
+        <line x1="50" y1="74" x2="88" y2="122" stroke="#3a404d" stroke-width="8" stroke-linecap="round"/>
+        <line x1="88" y1="124" x2="116" y2="124" stroke="#3a404d" stroke-width="7" stroke-linecap="round"/>
+        <line x1="138" y1="102" x2="174" y2="68" stroke="#262a34" stroke-width="3"/>`;
     }
     return html;
   }
@@ -849,26 +850,26 @@
         <circle cx="${p.wr[0] + 12}" cy="${p.wr[1]}" r="5" fill="#f59e0b"/>`;
     } else if (rig.prop === "dumbbell") {
       propSvg = `
-        <rect x="${p.wr[0] - 6}" y="${p.wr[1] - 4}" width="12" height="8" rx="2.5" fill="#38bdf8" stroke="#0b0f17" stroke-width="1"/>`;
+        <rect x="${p.wr[0] - 6}" y="${p.wr[1] - 4}" width="12" height="8" rx="2" fill="#dc2626" stroke="#0b0c0e" stroke-width="1"/>`;
     }
 
-    const line = (a, b, color = "#e2e8f0", w = 4.5) =>
+    const line = (a, b, color = "#f3f4f6", w = 4.5) =>
       `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`;
-    const joint = (pt, r = 3.2, color = "#38bdf8") =>
+    const joint = (pt, r = 3.2, color = "#dc2626") =>
       `<circle cx="${pt[0]}" cy="${pt[1]}" r="${r}" fill="${color}"/>`;
 
     svg.innerHTML = `
       ${equipSvg}
-      ${line(p.hip, p.kn, "#94a3b8", 5)}
-      ${line(p.kn, p.an, "#94a3b8", 4.5)}
-      ${line(p.hip, p.neck, "#e2e8f0", 5.5)}
-      ${line(p.sh, p.el, "#38bdf8", 4.5)}
-      ${line(p.el, p.wr, "#38bdf8", 4)}
-      <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#1e293b" stroke="#e2e8f0" stroke-width="2.5"/>
-      ${joint(p.sh, 3.5, "#38bdf8")}
-      ${joint(p.el, 3, "#7dd3fc")}
-      ${joint(p.hip, 3.5, "#cbd5e1")}
-      ${joint(p.kn, 3, "#cbd5e1")}
+      ${line(p.hip, p.kn, "#9ca3af", 5)}
+      ${line(p.kn, p.an, "#9ca3af", 4.5)}
+      ${line(p.hip, p.neck, "#f3f4f6", 5.5)}
+      ${line(p.sh, p.el, "#dc2626", 4.5)}
+      ${line(p.el, p.wr, "#dc2626", 4)}
+      <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.5"/>
+      ${joint(p.sh, 3.5, "#dc2626")}
+      ${joint(p.el, 3, "#f87171")}
+      ${joint(p.hip, 3.5, "#d1d5db")}
+      ${joint(p.kn, 3, "#d1d5db")}
       ${propSvg}
     `;
   }
@@ -1103,12 +1104,27 @@
   }
 
   /* ---------------- DASHBOARD ---------------- */
+  function switchDashPreset(preset) {
+    currentDashPreset = preset;
+    document.querySelectorAll(".dash-preset-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.preset === preset);
+    });
+    document.querySelectorAll(".dash-preset").forEach((p) => {
+      p.classList.toggle("active", p.id === `dash-preset-${preset}`);
+    });
+  }
+
   function renderDashboard() {
     const profile = getActiveProfile();
     document.getElementById("dash-greeting").textContent = `Hey, ${profile.name}`;
 
+    const active = getActiveWorkout();
+    document.getElementById("dash-session-heading").textContent = active ? "Active Session in Progress" : "Ready to train";
+    document.getElementById("btn-dash-start").textContent = active ? "Resume Workout" : "+ Start Workout";
+
+    const allWorkouts = getProfileWorkouts(profile.id);
     const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recent7 = getProfileWorkouts(profile.id).filter((w) => new Date(w.endedAt).getTime() >= cutoff7);
+    const recent7 = allWorkouts.filter((w) => new Date(w.endedAt).getTime() >= cutoff7);
 
     let totalSets = 0;
     let totalVol = 0;
@@ -1137,6 +1153,38 @@
     `;
     focusEl.querySelector("[data-preview-rec]").addEventListener("click", () => openRecommendationModal(rec.id));
 
+    const stats7 = computeMuscleStats(profile.id, "7");
+    const trainedMuscles = Object.entries(stats7)
+      .filter(([, v]) => v.weightedSets > 0)
+      .sort((a, b) => b[1].weightedSets - a[1].weightedSets);
+
+    document.getElementById("dash-stimulus-summary").textContent = trainedMuscles.length
+      ? `${trainedMuscles.length} muscle group${trainedMuscles.length === 1 ? "" : "s"} stimulated in 7D`
+      : "View 7-day anatomical heatmap";
+
+    const prMap = new Map();
+    allWorkouts.forEach((w) => {
+      w.exercises.forEach((item) => {
+        const ex = getExerciseById(item.exerciseId);
+        if (!ex) return;
+        item.sets.forEach((s) => {
+          const weight = Number(s.weight) || 0;
+          const reps = Number(s.reps) || 0;
+          if (weight <= 0 || reps <= 0) return;
+          const est1RM = weight * (1 + reps / 30);
+          const prev = prMap.get(ex.id);
+          if (!prev || est1RM > prev.est1RM) {
+            prMap.set(ex.id, { name: ex.name, est1RM, weight, reps, date: w.endedAt });
+          }
+        });
+      });
+    });
+    const topPRs = Array.from(prMap.values()).sort((a, b) => b.est1RM - a.est1RM);
+
+    document.getElementById("dash-pr-summary").textContent = topPRs.length
+      ? `${topPRs.length} exercise PR${topPRs.length === 1 ? "" : "s"} tracked · View 1RM charts`
+      : "View 1RM progression & charts";
+
     const recScroll = document.getElementById("dash-recommendations");
     recScroll.innerHTML = DAY_RECOMMENDATIONS.map(
       (r) => `
@@ -1160,34 +1208,66 @@
     });
 
     const feed = document.getElementById("dash-recent-workouts");
-    const userWorkouts = getProfileWorkouts(profile.id).slice(0, 6);
+    const userWorkouts = allWorkouts.slice(0, 6);
     if (!userWorkouts.length) {
-      feed.innerHTML = `<div class="empty-state">No workouts logged for <strong>${escapeHtml(profile.name)}</strong> yet. Tap <strong>+ Start Workout</strong> or pick a recommended day above.</div>`;
-      return;
+      feed.innerHTML = `<div class="empty-state">No workouts logged for <strong>${escapeHtml(profile.name)}</strong> yet. Tap <strong>+ Blank Workout</strong> or pick a recommended day above.</div>`;
+    } else {
+      feed.innerHTML = userWorkouts
+        .map((w) => {
+          const vol = w.exercises.reduce(
+            (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+            0
+          );
+          return `
+            <div class="card" data-open-workout="${w.id}" style="cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>${escapeHtml(w.title)}</strong>
+                <span class="muted-note">${formatDate(w.endedAt)}</span>
+              </div>
+              <div class="muted-note" style="margin-top:4px;">
+                ${w.exercises.length} exercises • ${Math.round(vol).toLocaleString()} kg
+              </div>
+            </div>`;
+        })
+        .join("");
+
+      feed.querySelectorAll("[data-open-workout]").forEach((card) => {
+        card.addEventListener("click", () => openWorkoutDetail(card.dataset.openWorkout));
+      });
     }
 
-    feed.innerHTML = userWorkouts
-      .map((w) => {
-        const vol = w.exercises.reduce(
-          (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
-          0
-        );
-        return `
-          <div class="card" data-open-workout="${w.id}" style="cursor:pointer;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong>${escapeHtml(w.title)}</strong>
-              <span class="muted-note">${formatDate(w.endedAt)}</span>
-            </div>
-            <div class="muted-note" style="margin-top:4px;">
-              ${w.exercises.length} exercises • ${Math.round(vol).toLocaleString()} kg
-            </div>
-          </div>`;
-      })
-      .join("");
+    const topMusclesEl = document.getElementById("dash-top-muscles");
+    if (!trainedMuscles.length) {
+      topMusclesEl.innerHTML = `<div class="empty-state">Log a workout to see your 7-day muscle stimulus breakdown.</div>`;
+    } else {
+      topMusclesEl.innerHTML = trainedMuscles
+        .slice(0, 5)
+        .map(([key, val]) => `
+          <div class="muscle-ex-item">
+            <strong>${MUSCLES[key]}</strong>
+            <span class="muted-note">${val.weightedSets.toFixed(1).replace(/\.0$/, "")} sets · ${Math.round(val.volume).toLocaleString()} kg</span>
+          </div>`
+        )
+        .join("");
+    }
 
-    feed.querySelectorAll("[data-open-workout]").forEach((card) => {
-      card.addEventListener("click", () => openWorkoutDetail(card.dataset.openWorkout));
-    });
+    const topPrsEl = document.getElementById("dash-top-prs");
+    if (!topPRs.length) {
+      topPrsEl.innerHTML = `<div class="empty-state">Log weighted sets to track your estimated 1RM records.</div>`;
+    } else {
+      topPrsEl.innerHTML = topPRs
+        .slice(0, 5)
+        .map((pr) => `
+          <div class="muscle-ex-item">
+            <div>
+              <strong>${escapeHtml(pr.name)}</strong>
+              <div class="muted-note">${pr.weight} kg × ${pr.reps} · ${formatDate(pr.date)}</div>
+            </div>
+            <span class="badge badge-primary">${Math.round(pr.est1RM)} kg 1RM</span>
+          </div>`
+        )
+        .join("");
+    }
   }
 
   /* ---------------- RECOMMENDATIONS ---------------- */
@@ -1756,15 +1836,15 @@
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "Weighted Sets", data: values, backgroundColor: "#38bdf8", borderRadius: 6 }]
+        datasets: [{ label: "Weighted Sets", data: values, backgroundColor: "#dc2626", borderRadius: 3 }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#94a3b8", font: { size: 11 } }, grid: { display: false } },
-          y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" }, beginAtZero: true }
+          x: { ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" }, beginAtZero: true }
         }
       }
     });
@@ -1806,10 +1886,10 @@
           {
             label: "Est. 1RM (kg)",
             data: data.length ? data : [0],
-            borderColor: "#22c55e",
-            backgroundColor: "rgba(34, 197, 94, 0.15)",
+            borderColor: "#dc2626",
+            backgroundColor: "rgba(220, 38, 38, 0.14)",
             fill: true,
-            tension: 0.3
+            tension: 0.25
           }
         ]
       },
@@ -1818,8 +1898,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-          y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } }
+          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
+          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" } }
         }
       }
     });
@@ -1977,8 +2057,8 @@
           {
             label: "Weight (kg)",
             data: asc.length ? asc.map((e) => e.weight) : [0],
-            borderColor: "#38bdf8",
-            tension: 0.3
+            borderColor: "#dc2626",
+            tension: 0.25
           }
         ]
       },
@@ -1987,8 +2067,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-          y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } }
+          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
+          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" } }
         }
       }
     });
@@ -2086,10 +2166,14 @@
       e.target.value = "";
     });
 
+    document.querySelectorAll(".dash-preset-btn").forEach((btn) => {
+      btn.addEventListener("click", () => switchDashPreset(btn.dataset.preset));
+    });
     document.getElementById("btn-dash-start").addEventListener("click", () => {
       if (getActiveWorkout()) switchView("workout");
       else startBlankWorkout();
     });
+    document.getElementById("btn-dash-blank").addEventListener("click", startBlankWorkout);
     document.getElementById("btn-start-blank").addEventListener("click", startBlankWorkout);
     document.getElementById("btn-add-exercise").addEventListener("click", openExercisePicker);
     document.getElementById("btn-finish-workout").addEventListener("click", finishWorkout);
