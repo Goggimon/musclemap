@@ -871,13 +871,6 @@
         const model = gltf.scene;
         model.updateMatrixWorld(true);
 
-        // Normalize model height to 1.72m
-        const box = new THREE.Box3().setFromObject(model);
-        const h = box.max.y - box.min.y || 1;
-        const scale = 1.72 / h;
-        model.scale.multiplyScalar(scale);
-        model.updateMatrixWorld(true);
-
         const boneNames = [
           "mixamorigHips", "mixamorigSpine", "mixamorigSpine1", "mixamorigSpine2",
           "mixamorigNeck", "mixamorigHead",
@@ -891,20 +884,32 @@
           if (obj.isMesh) {
             obj.castShadow = true;
             obj.receiveShadow = true;
-            if (obj.material) {
-              const name = (obj.name || "").toLowerCase();
-              obj.material = new THREE.MeshStandardMaterial({
-                color: name.includes("joint") ? 0x374151 : 0x222630,
-                roughness: name.includes("joint") ? 0.4 : 0.55,
-                metalness: 0.25,
-                skinning: Boolean(obj.isSkinnedMesh)
-              });
-            }
+            obj.frustumCulled = false;
+            const name = (obj.name || "").toLowerCase();
+            obj.material = new THREE.MeshStandardMaterial({
+              color: name.includes("joint") ? 0x64748b : 0x4b5563,
+              roughness: name.includes("joint") ? 0.38 : 0.48,
+              metalness: 0.22
+            });
           }
           if (obj.isBone && boneNames.includes(obj.name)) {
             glbBones[obj.name] = obj;
           }
         });
+
+        // Normalize height using actual skeleton bone span (immune to SkinnedMesh Box3 bugs)
+        model.updateMatrixWorld(true);
+        if (glbBones.mixamorigHead && glbBones.mixamorigLeftFoot) {
+          const pHead = new THREE.Vector3();
+          const pFoot = new THREE.Vector3();
+          glbBones.mixamorigHead.getWorldPosition(pHead);
+          glbBones.mixamorigLeftFoot.getWorldPosition(pFoot);
+          const boneSpan = Math.abs(pHead.y - pFoot.y);
+          if (boneSpan > 0.05) {
+            model.scale.multiplyScalar(1.52 / boneSpan);
+            model.updateMatrixWorld(true);
+          }
+        }
 
         // Capture rest-pose world directions & quaternions for exact IK-like orientation
         const childMap = {
@@ -1604,25 +1609,28 @@
       const mat = muscleMats[m];
       if (!mat) return;
       let mult = 1.0;
-      if (prim.has(m)) {
+      const isPrim = prim.has(m);
+      const isSec = sec.has(m);
+      if (isPrim) {
         mat.color.setHex(0xef4444);
         mat.emissive.setHex(0x991b1b);
         mat.emissiveIntensity = 0.45 + ease * 0.75;
-        mat.opacity = 0.92;
+        mat.opacity = 0.94;
         mult = 1 + ease * 0.09;
-      } else if (sec.has(m)) {
+      } else if (isSec) {
         mat.color.setHex(0xf59e0b);
         mat.emissive.setHex(0x92400e);
         mat.emissiveIntensity = 0.22 + ease * 0.36;
-        mat.opacity = 0.85;
+        mat.opacity = 0.86;
         mult = 1 + ease * 0.04;
       } else {
-        mat.color.setHex(0x374151);
+        mat.color.setHex(0x4b5563);
         mat.emissive.setHex(0x000000);
         mat.emissiveIntensity = 0;
-        mat.opacity = glbReady ? 0.16 : 0.65;
+        mat.opacity = 0.75;
       }
       (muscleMeshes[m] || []).forEach((mesh) => {
+        mesh.visible = glbReady ? (isPrim || isSec) : true;
         const bs = mesh.userData.baseScale;
         if (bs) mesh.scale.set(bs[0] * mult, bs[1], bs[2] * mult);
       });
@@ -1763,25 +1771,57 @@
     if (!glbReady || !glbModel || !glbBones.mixamorigHips) return;
     const THREE = window.THREE;
 
-    // Position hips
-    glbBones.mixamorigHips.position.set(0, 0, 0);
-    glbModel.position.set(p.pelvis.x, p.pelvis.y - 0.94, p.pelvis.z);
+    // Orient hips in world space (accounting for Armature parent transform)
+    const spineUp = new THREE.Vector3().subVectors(p.chest, p.pelvis);
+    if (spineUp.lengthSq() < 1e-6) spineUp.set(0, 1, 0);
+    else spineUp.normalize();
 
-    // Orient hips with spine up & torso forward
-    const spineUp = new THREE.Vector3().subVectors(p.chest, p.pelvis).normalize();
-    const fwd = torsoFwd.clone().sub(spineUp.clone().multiplyScalar(torsoFwd.dot(spineUp))).normalize();
+    const fwd = torsoFwd.clone().sub(spineUp.clone().multiplyScalar(torsoFwd.dot(spineUp)));
+    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1);
+    else fwd.normalize();
+
     const right = new THREE.Vector3().crossVectors(spineUp, fwd).normalize();
     const orthoFwd = new THREE.Vector3().crossVectors(right, spineUp).normalize();
-    const hipsTargetQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, spineUp, orthoFwd));
-    glbBones.mixamorigHips.quaternion.copy(hipsTargetQ);
+    const hipsTargetWorldQ = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(right, spineUp, orthoFwd)
+    );
+
+    const hips = glbBones.mixamorigHips;
+    if (hips.parent) {
+      const parentQ = new THREE.Quaternion();
+      hips.parent.getWorldQuaternion(parentQ);
+      hips.quaternion.copy(parentQ.invert().multiply(hipsTargetWorldQ));
+    } else {
+      hips.quaternion.copy(hipsTargetWorldQ);
+    }
+
+    // Place glbModel so mixamorigHips world position matches p.pelvis exactly
+    glbModel.position.set(0, 0, 0);
     glbModel.updateMatrixWorld(true);
+    const hipsWorldPos = new THREE.Vector3();
+    hips.getWorldPosition(hipsWorldPos);
+    glbModel.position.copy(p.pelvis).sub(hipsWorldPos);
+    glbModel.updateMatrixWorld(true);
+
+    const safeUnitQuat = (vFrom, vTo) => {
+      const d = vFrom.dot(vTo);
+      if (d < -0.9999) {
+        const axis = new THREE.Vector3(1, 0, 0).cross(vFrom);
+        if (axis.lengthSq() < 1e-6) axis.set(0, 0, 1).cross(vFrom);
+        axis.normalize();
+        return new THREE.Quaternion().setFromAxisAngle(axis, Math.PI);
+      }
+      return new THREE.Quaternion().setFromUnitVectors(vFrom, vTo);
+    };
 
     const alignBone = (bName, ptA, ptB) => {
       const bone = glbBones[bName];
       const rest = glbRest[bName];
       if (!bone || !rest || !bone.parent) return;
-      const targetDir = new THREE.Vector3().subVectors(ptB, ptA).normalize();
-      const deltaWorld = new THREE.Quaternion().setFromUnitVectors(rest.restDir, targetDir);
+      const diff = new THREE.Vector3().subVectors(ptB, ptA);
+      if (diff.lengthSq() < 1e-6) return;
+      const targetDir = diff.normalize();
+      const deltaWorld = safeUnitQuat(rest.restDir, targetDir);
       const targetWorldQ = deltaWorld.multiply(rest.restWorldQuat);
       const parentWorldQ = new THREE.Quaternion();
       bone.parent.getWorldQuaternion(parentWorldQ);
