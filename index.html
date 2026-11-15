@@ -42,56 +42,66 @@
             <p class="eyebrow">Training Home</p>
             <h1 id="dash-greeting">Welcome</h1>
           </div>
-          <div class="segmented" role="tablist" aria-label="Dashboard preset">
-            <button class="seg-btn dash-preset-btn active" type="button" data-preset="overview">Overview</button>
-            <button class="seg-btn dash-preset-btn" type="button" data-preset="training">Training</button>
-            <button class="seg-btn dash-preset-btn" type="button" data-preset="analytics">Analytics</button>
+          <div class="dash-top-actions">
+            <button id="btn-customize-dash" class="btn btn-secondary btn-sm" type="button">Customize</button>
+            <div class="segmented" role="tablist" aria-label="Dashboard preset">
+              <button class="seg-btn dash-preset-btn active" type="button" data-preset="overview">Overview</button>
+              <button class="seg-btn dash-preset-btn" type="button" data-preset="training">Training</button>
+              <button class="seg-btn dash-preset-btn" type="button" data-preset="analytics">Analytics</button>
+            </div>
           </div>
         </div>
 
         <!-- PRESET 1: OVERVIEW -->
         <div id="dash-preset-overview" class="dash-preset active">
+          <div id="dash-recovery-banner" class="card recovery-banner hidden"></div>
           <div class="dash-grid">
-            <div class="card">
-              <div class="hero-top">
-                <div>
-                  <span class="eyebrow">Session</span>
-                  <h2 id="dash-session-heading">Ready to train</h2>
+            <div class="card-stack">
+              <div class="card" data-dash-widget="session">
+                <div class="hero-top">
+                  <div>
+                    <span class="eyebrow">Session</span>
+                    <h2 id="dash-session-heading">Ready to train</h2>
+                  </div>
+                  <button id="btn-dash-start" class="btn btn-primary" type="button">+ Start Workout</button>
                 </div>
-                <button id="btn-dash-start" class="btn btn-primary" type="button">+ Start Workout</button>
+                <div class="kpi-grid" data-dash-widget="kpis">
+                  <div class="kpi-box">
+                    <span class="kpi-label">7D Sessions</span>
+                    <strong id="kpi-workouts-7d" class="kpi-value">0</strong>
+                  </div>
+                  <div class="kpi-box">
+                    <span class="kpi-label">7D Volume</span>
+                    <strong id="kpi-volume-7d" class="kpi-value">0 kg</strong>
+                  </div>
+                  <div class="kpi-box">
+                    <span class="kpi-label">7D Sets</span>
+                    <strong id="kpi-sets-7d" class="kpi-value">0</strong>
+                  </div>
+                </div>
               </div>
-              <div class="kpi-grid">
-                <div class="kpi-box">
-                  <span class="kpi-label">7D Sessions</span>
-                  <strong id="kpi-workouts-7d" class="kpi-value">0</strong>
-                </div>
-                <div class="kpi-box">
-                  <span class="kpi-label">7D Volume</span>
-                  <strong id="kpi-volume-7d" class="kpi-value">0 kg</strong>
-                </div>
-                <div class="kpi-box">
-                  <span class="kpi-label">7D Sets</span>
-                  <strong id="kpi-sets-7d" class="kpi-value">0</strong>
-                </div>
-              </div>
+              <div id="dash-streak-card" class="card" data-dash-widget="streak"></div>
             </div>
 
             <div class="card-stack">
-              <div id="dash-focus-banner" class="card focus-banner"></div>
-              <button class="card quick-link-row" type="button" data-nav="anatomy">
-                <div>
-                  <span class="eyebrow">Muscle Stimulus</span>
-                  <strong id="dash-stimulus-summary">View 7-day anatomical heatmap</strong>
-                </div>
-                <span class="muted-note">Map &rarr;</span>
-              </button>
-              <button class="card quick-link-row" type="button" data-nav="analytics">
-                <div>
-                  <span class="eyebrow">Personal Records</span>
-                  <strong id="dash-pr-summary">View 1RM progression &amp; charts</strong>
-                </div>
-                <span class="muted-note">Stats &rarr;</span>
-              </button>
+              <div id="dash-focus-banner" class="card focus-banner" data-dash-widget="recommended"></div>
+              <div class="card-stack" data-dash-widget="quick_links">
+                <button class="card quick-link-row" type="button" data-nav="anatomy">
+                  <div>
+                    <span class="eyebrow">Muscle Stimulus</span>
+                    <strong id="dash-stimulus-summary">View 7-day anatomical heatmap</strong>
+                  </div>
+                  <span class="muted-note">Map &rarr;</span>
+                </button>
+                <button class="card quick-link-row" type="button" data-nav="analytics">
+                  <div>
+                    <span class="eyebrow">Personal Records</span>
+                    <strong id="dash-pr-summary">View 1RM progression &amp; charts</strong>
+                  </div>
+                  <span class="muted-note">Stats &rarr;</span>
+                </button>
+              </div>
+              <div id="dash-recent-overview" class="card" data-dash-widget="recent"></div>
             </div>
           </div>
         </div>
@@ -158,6 +168,11 @@
           <div class="segmented" role="group" aria-label="Body side">
             <button id="btn-view-front" class="seg-btn active" type="button">Front</button>
             <button id="btn-view-back" class="seg-btn" type="button">Back</button>
+          </div>
+          <div class="segmented" role="group" aria-label="Heatmap metric">
+            <button class="seg-btn metric-btn active" type="button" data-metric="sets">Sets</button>
+            <button class="seg-btn metric-btn" type="button" data-metric="volume">Volume</button>
+            <button class="seg-btn metric-btn" type="button" data-metric="recovery">Recovery</button>
           </div>
           <div class="segmented" role="group" aria-label="Time window">
             <button class="seg-btn window-btn active" type="button" data-window="7">7D</button>
@@ -350,6 +365,7 @@
             </div>
           </div>
           <div id="muscle-panel-exercises" class="muscle-ex-list"></div>
+          <div id="anatomy-balance-panel" class="balance-panel"></div>
         </div>
       </section>
 
@@ -380,18 +396,26 @@
           <div class="active-header card">
             <div class="active-meta">
               <input id="workout-title-input" class="title-input" type="text" value="Evening Session" placeholder="Workout Name" />
+              <span id="workout-autosave-status" class="autosave-pill">Autosaved</span>
               <span id="workout-timer" class="timer-badge">00:00</span>
             </div>
             <div class="btn-row">
+              <button id="btn-open-plate-calc" class="btn btn-secondary btn-sm" type="button">Plate Calc</button>
               <button id="btn-discard-workout" class="btn btn-danger-ghost btn-sm" type="button">Discard</button>
               <button id="btn-finish-workout" class="btn btn-primary btn-sm" type="button">Finish &amp; Save</button>
             </div>
             <div class="rest-bar">
-              <span id="rest-timer-display" class="muted-note">Rest: Ready</span>
+              <div class="rest-status-group">
+                <span id="rest-timer-display" class="muted-note">Rest: Ready</span>
+                <button id="btn-auto-rest-toggle" class="rest-btn active" type="button" title="Auto-start rest timer when a set is checked">Auto: ON</button>
+              </div>
               <div class="btn-row">
+                <button id="btn-rest-minus" class="rest-btn hidden" type="button">-15s</button>
+                <button id="btn-rest-plus" class="rest-btn hidden" type="button">+15s</button>
                 <button class="rest-btn" type="button" data-rest="60">60s</button>
                 <button class="rest-btn" type="button" data-rest="90">90s</button>
                 <button class="rest-btn" type="button" data-rest="120">120s</button>
+                <button class="rest-btn" type="button" data-rest="180">180s</button>
                 <button id="btn-rest-stop" class="rest-btn hidden" type="button">Stop</button>
               </div>
             </div>
@@ -419,6 +443,7 @@
       <section id="view-analytics" class="view">
         <div class="segmented full-width" role="tablist">
           <button class="seg-btn analytics-tab active" type="button" data-tab="charts">Charts</button>
+          <button class="seg-btn analytics-tab" type="button" data-tab="calendar">Calendar</button>
           <button class="seg-btn analytics-tab" type="button" data-tab="history">History</button>
           <button class="seg-btn analytics-tab" type="button" data-tab="body">Body Info</button>
         </div>
@@ -449,8 +474,32 @@
           </div>
         </div>
 
+        <!-- Subtab: Calendar -->
+        <div id="tab-calendar" class="analytics-panel">
+          <div class="card">
+            <div class="cal-header">
+              <button id="btn-cal-prev" class="btn btn-secondary btn-sm" type="button">&larr;</button>
+              <h3 id="cal-month-label">Month</h3>
+              <div class="btn-row">
+                <button id="btn-cal-today" class="btn btn-ghost btn-sm" type="button">Today</button>
+                <button id="btn-cal-next" class="btn btn-secondary btn-sm" type="button">&rarr;</button>
+              </div>
+            </div>
+            <div id="cal-month-summary" class="muted-note" style="margin-bottom:10px;"></div>
+            <div class="cal-weekdays">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div id="cal-grid" class="cal-grid"></div>
+          </div>
+          <div id="cal-day-detail" class="card-stack"></div>
+        </div>
+
         <!-- Subtab: History -->
         <div id="tab-history" class="analytics-panel">
+          <div class="card-head">
+            <span class="muted-note">Completed sessions</span>
+            <button id="btn-history-export-csv" class="btn btn-secondary btn-sm" type="button">Export CSV</button>
+          </div>
           <div id="workout-history-list" class="card-stack"></div>
         </div>
 
@@ -725,6 +774,7 @@
           <p class="muted-note">Data stays in LocalStorage on this browser. Export JSON to move your data to another device.</p>
           <div class="btn-row">
             <button id="btn-export-json" class="btn btn-secondary" type="button">Export JSON</button>
+            <button id="btn-export-csv" class="btn btn-secondary" type="button">Export CSV</button>
             <label class="btn btn-secondary file-btn">
               Import JSON
               <input id="input-import-json" type="file" accept="application/json,.json" hidden />
@@ -777,7 +827,66 @@
         </div>
       </div>
       <div id="form-modal-muscles" class="badge-row"></div>
+      <div id="form-modal-tiers" class="tier-wrap hidden"></div>
       <ul id="form-modal-cues" class="form-cues"></ul>
+    </div>
+  </div>
+
+  <!-- MODAL: Exercise Substitution -->
+  <div id="modal-exercise-swap" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="swap-modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="swap-modal-title">Substitute Exercise</h3>
+          <span id="swap-source-info" class="muted-note"></span>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-exercise-swap">&times;</button>
+      </div>
+      <input id="swap-search-input" class="input" type="search" placeholder="Filter alternatives..." />
+      <div id="swap-exercise-list" class="modal-list"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: Plate Calculator -->
+  <div id="modal-plate-calc" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="plate-modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="plate-modal-title">Plate Calculator</h3>
+        <button class="close-modal btn-icon" type="button" data-close="modal-plate-calc">&times;</button>
+      </div>
+      <div class="form-stack">
+        <div class="grid-2">
+          <label class="field">
+            <span>Target Weight (kg)</span>
+            <input id="plate-target-weight" class="input" type="number" step="1.25" min="0" value="60" />
+          </label>
+          <label class="field">
+            <span>Bar Weight (kg)</span>
+            <select id="plate-bar-weight" class="input">
+              <option value="20" selected>20 kg (Olympic)</option>
+              <option value="15">15 kg (Women's)</option>
+              <option value="10">10 kg (EZ / Light)</option>
+              <option value="0">0 kg (Machine / Plate-Loaded)</option>
+            </select>
+          </label>
+        </div>
+        <div id="plate-calc-result" class="plate-result-box"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Customize Dashboard -->
+  <div id="modal-customize-dash" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="customize-dash-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="customize-dash-title">Customize Overview</h3>
+        <button class="close-modal btn-icon" type="button" data-close="modal-customize-dash">&times;</button>
+      </div>
+      <div class="form-stack">
+        <p class="muted-note">Choose which widgets appear on your Training Home Overview.</p>
+        <div id="customize-dash-list" class="card-stack"></div>
+        <button id="btn-save-dash-prefs" class="btn btn-primary btn-full" type="button">Done</button>
+      </div>
     </div>
   </div>
 

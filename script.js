@@ -648,6 +648,14 @@
         u1: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" },
         u2: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" }
       },
+      settings: {
+        u1: { autoRest: true, defaultRestSec: 90 },
+        u2: { autoRest: true, defaultRestSec: 90 }
+      },
+      dashboardPrefs: {
+        u1: { session: true, kpis: true, recommended: true, streak: true, quick_links: true, recent: true },
+        u2: { session: true, kpis: true, recommended: true, streak: true, quick_links: true, recent: true }
+      },
       exercises: DEFAULT_EXERCISES,
       routines: { u1: [], u2: [] },
       workouts: [],
@@ -660,12 +668,17 @@
   let currentView = "dashboard";
   let currentDashPreset = "overview";
   let currentSide = "front";
+  let currentMetric = "sets";
   let currentWindow = "7";
   let selectedMuscle = null;
   let libraryMuscleFilter = "all";
   let timerInterval = null;
   let restInterval = null;
-  let restRemaining = 0;
+  let restEndsAt = 0;
+  let swapTargetExIdx = null;
+  let calYear = new Date().getFullYear();
+  let calMonth = new Date().getMonth();
+  let calSelectedDateKey = null;
   let charts = { volume: null, strength: null, weight: null };
 
   // Form animation state
@@ -695,6 +708,16 @@
         ...parsed,
         profiles: parsed.profiles?.length ? parsed.profiles : base.profiles,
         bodyProfiles: { ...base.bodyProfiles, ...(parsed.bodyProfiles || {}) },
+        settings: {
+          u1: { ...base.settings.u1, ...(parsed.settings?.u1 || {}) },
+          u2: { ...base.settings.u2, ...(parsed.settings?.u2 || {}) },
+          ...(parsed.settings || {})
+        },
+        dashboardPrefs: {
+          u1: { ...base.dashboardPrefs.u1, ...(parsed.dashboardPrefs?.u1 || {}) },
+          u2: { ...base.dashboardPrefs.u2, ...(parsed.dashboardPrefs?.u2 || {}) },
+          ...(parsed.dashboardPrefs || {})
+        },
         exercises: mergeById(DEFAULT_EXERCISES, parsed.exercises || []),
         routines: Array.isArray(parsed.routines)
           ? { u1: parsed.routines, u2: [] }
@@ -709,7 +732,32 @@
   }
 
   function saveState() {
+    const active = state.activeWorkouts?.[state.activeProfileId];
+    if (active) {
+      active.lastSavedAt = new Date().toISOString();
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    updateAutosaveIndicator();
+  }
+
+  function updateAutosaveIndicator() {
+    const pill = document.getElementById("workout-autosave-status");
+    const active = state.activeWorkouts?.[state.activeProfileId];
+    if (!pill || !active) return;
+    const t = active.lastSavedAt
+      ? new Date(active.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "now";
+    pill.textContent = `Autosaved · ${t}`;
+  }
+
+  function getProfileSettings(profileId = state.activeProfileId) {
+    if (!state.settings[profileId]) state.settings[profileId] = { autoRest: true, defaultRestSec: 90 };
+    return state.settings[profileId];
+  }
+
+  function getDashboardPrefs(profileId = state.activeProfileId) {
+    const defaults = { session: true, kpis: true, recommended: true, streak: true, quick_links: true, recent: true };
+    return { ...defaults, ...(state.dashboardPrefs?.[profileId] || {}) };
   }
 
   function uid(prefix = "id") {
@@ -772,6 +820,182 @@
     return `${m}:${s}`;
   }
 
+  /* ---------------- BODY-GATED EXERCISE WEIGHT TIERS ---------------- */
+  const EXERCISE_BW_RATIOS = {
+    ex_bench: { r: 0.90 },
+    ex_db_bench: { r: 0.34, perHand: true },
+    ex_incline_db: { r: 0.30, perHand: true },
+    ex_incline_bb: { r: 0.78 },
+    ex_db_fly: { r: 0.16, perHand: true },
+    ex_db_pullover: { r: 0.30 },
+    ex_cable_fly: { r: 0.22, perHand: true },
+    ex_pec_deck: { r: 0.55 },
+    ex_chest_press_mach: { r: 0.80 },
+    ex_dips: { bw: true, weighted: true },
+    ex_pushup: { bw: true, weighted: false },
+
+    ex_ohp: { r: 0.58 },
+    ex_db_shoulder: { r: 0.24, perHand: true },
+    ex_arnold_press: { r: 0.22, perHand: true },
+    ex_shoulder_mach: { r: 0.55 },
+    ex_lat_raise: { r: 0.11, perHand: true },
+    ex_cable_lat_raise: { r: 0.10 },
+    ex_db_front_raise: { r: 0.11, perHand: true },
+    ex_db_rear_fly: { r: 0.10, perHand: true },
+    ex_rear_delt_mach: { r: 0.45 },
+    ex_face_pull: { r: 0.30 },
+
+    ex_pullup: { bw: true, weighted: true },
+    ex_lat_pulldown: { r: 0.72 },
+    ex_bb_row: { r: 0.80 },
+    ex_db_single_row: { r: 0.36 },
+    ex_db_chest_row: { r: 0.28, perHand: true },
+    ex_cable_row: { r: 0.75 },
+    ex_mach_row: { r: 0.75 },
+    ex_shrug: { r: 0.36, perHand: true },
+    ex_bb_shrug: { r: 1.00 },
+
+    ex_bb_curl: { r: 0.38 },
+    ex_db_curl: { r: 0.16, perHand: true },
+    ex_incline_curl: { r: 0.14, perHand: true },
+    ex_hammer_curl: { r: 0.17, perHand: true },
+    ex_conc_curl: { r: 0.15 },
+    ex_preacher_mach: { r: 0.38 },
+    ex_pushdown: { r: 0.35 },
+    ex_db_oh_ext: { r: 0.26 },
+    ex_db_skull: { r: 0.14, perHand: true },
+    ex_skullcrusher: { r: 0.35 },
+    ex_tricep_kickback: { r: 0.10, perHand: true },
+
+    ex_squat: { r: 1.25 },
+    ex_goblet_squat: { r: 0.36 },
+    ex_db_split_squat: { r: 0.22, perHand: true },
+    ex_db_lunge: { r: 0.22, perHand: true },
+    ex_smith_squat: { r: 1.15 },
+    ex_leg_press: { r: 1.85 },
+    ex_leg_ext: { r: 0.65 },
+    ex_rdl: { r: 1.10 },
+    ex_db_rdl: { r: 0.32, perHand: true },
+    ex_deadlift: { r: 1.50 },
+    ex_leg_curl: { r: 0.55 },
+    ex_lying_leg_curl: { r: 0.55 },
+    ex_hip_thrust: { r: 1.35 },
+    ex_calf_raise: { r: 1.05 },
+    ex_db_calf: { r: 0.24 },
+
+    ex_hanging_raise: { bw: true, weighted: false },
+    ex_cable_crunch: { r: 0.45 },
+    ex_ab_mach: { r: 0.45 },
+    ex_woodchop: { r: 0.22 }
+  };
+
+  function getUserEffectiveWeight(profileId = state.activeProfileId) {
+    const bp = getBodyProfile(profileId);
+    const entries = state.measurements
+      .filter((m) => m.profileId === profileId && Number(m.weight) > 0)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    const latestMeas = entries[0] ? Number(entries[0].weight) : 0;
+    const profileW = Number(bp.weightKg) || 0;
+    const w = latestMeas > 0 ? latestMeas : profileW;
+    return w > 0 ? w : null;
+  }
+
+  function roundGymWeight(kg, equipment) {
+    if (equipment === "Barbell" || equipment === "Machine") {
+      return Math.max(5, Math.round(kg / 2.5) * 2.5);
+    }
+    const step = kg >= 12 ? 2 : 1;
+    return Math.max(2, Math.round(kg / step) * step);
+  }
+
+  function getExerciseWeightTiers(ex, profileId = state.activeProfileId) {
+    const bw = getUserEffectiveWeight(profileId);
+    if (!bw || !ex) return null;
+
+    const bp = getBodyProfile(profileId);
+    const age = Number(bp.age) || 0;
+    const ageFactor = age >= 50 ? 0.92 : age > 0 && age < 18 ? 0.90 : 1.0;
+    const goalFactor = bp.goal === "Strength" ? 1.05 : bp.goal === "Fat Loss" ? 0.95 : 1.0;
+    const mod = ageFactor * goalFactor;
+
+    let spec = EXERCISE_BW_RATIOS[ex.id];
+    if (!spec) {
+      if (ex.equipment === "Bodyweight") {
+        spec = { bw: true, weighted: true };
+      } else {
+        const lowerPrimary = (ex.primary || []).some((m) => ["quads", "hamstrings", "glutes", "lower_back"].includes(m));
+        const baseFallback =
+          ex.equipment === "Barbell" ? (lowerPrimary ? 1.1 : 0.7)
+          : ex.equipment === "Dumbbell" ? (lowerPrimary ? 0.28 : 0.20)
+          : ex.equipment === "Machine" ? (lowerPrimary ? 0.9 : 0.6)
+          : 0.35;
+        spec = { r: baseFallback, perHand: ex.equipment === "Dumbbell" };
+      }
+    }
+
+    const tiersMeta = [
+      { label: "Tier 1 - Beginner", mult: 0.55, reps: "12–15", sets: "2–3", failure: "No (RIR 3)", failCls: "tier-fail-no" },
+      { label: "Tier 2 - Moderate", mult: 0.75, reps: "8–12",  sets: "3",   failure: "No (RIR 1–2)", failCls: "tier-fail-no" },
+      { label: "Tier 3 - Heavy",    mult: 0.95, reps: "6–8",   sets: "3–4", failure: "Last set", failCls: "tier-fail-last" },
+      { label: "Tier 4 - Maximum",  mult: 1.12, reps: "3–5",   sets: "2–3", failure: "Yes", failCls: "tier-fail-yes" }
+    ];
+
+    const rows = tiersMeta.map((t, idx) => {
+      let weightStr = "";
+      if (spec.bw) {
+        if (idx === 0) weightStr = spec.weighted ? "BW (Assisted)" : "BW";
+        else if (idx === 1) weightStr = "BW";
+        else if (idx === 2) weightStr = spec.weighted ? `BW + ${roundGymWeight(bw * 0.08 * mod, "Barbell")} kg` : "BW";
+        else weightStr = spec.weighted ? `BW + ${roundGymWeight(bw * 0.18 * mod, "Barbell")} kg` : "BW + 5 kg";
+      } else {
+        const raw = bw * spec.r * t.mult * mod;
+        const rounded = roundGymWeight(raw, ex.equipment);
+        weightStr = spec.perHand ? `${rounded} kg × 2` : `${rounded} kg`;
+      }
+      return { ...t, weight: weightStr };
+    });
+
+    return { bw, goal: bp.goal || "Hypertrophy", rows };
+  }
+
+  function renderExerciseTierTableHtml(ex) {
+    const data = getExerciseWeightTiers(ex);
+    if (!data) return "";
+    return `
+      <div class="tier-head">
+        <span class="eyebrow" style="margin-bottom:0;">Recommended Load Tiers</span>
+        <span class="muted-note">Based on ${data.bw} kg · ${escapeHtml(data.goal)}</span>
+      </div>
+      <div class="tier-table-scroll">
+        <table class="tier-table">
+          <thead>
+            <tr>
+              <th>Exercise</th>
+              <th>Weight</th>
+              <th>Reps</th>
+              <th>Sets</th>
+              <th>Failure?</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.rows
+              .map(
+                (r) => `
+              <tr>
+                <td>${r.label}</td>
+                <td><strong>${escapeHtml(r.weight)}</strong></td>
+                <td>${r.reps}</td>
+                <td>${r.sets}</td>
+                <td class="${r.failCls}">${r.failure}</td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   /* ---------------- STICKMAN FORM ANIMATION ENGINE ---------------- */
   function lerp(a, b, t) {
     return a + (b - a) * t;
@@ -789,49 +1013,69 @@
     let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#262a34" stroke-width="2" stroke-linecap="round"/>`;
     if (equip === "bench_flat") {
       html += `
-        <rect x="46" y="106" width="96" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
-        <line x1="58" y1="114" x2="58" y2="152" stroke="#3a404d" stroke-width="3"/>
-        <line x1="130" y1="114" x2="130" y2="152" stroke="#3a404d" stroke-width="3"/>`;
+        <rect x="44" y="106" width="98" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
+        <rect x="44" y="106" width="98" height="3" rx="1" fill="#2a303c"/>
+        <line x1="56" y1="115" x2="56" y2="152" stroke="#3a404d" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="130" y1="115" x2="130" y2="152" stroke="#3a404d" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="50" y1="152" x2="62" y2="152" stroke="#4b5563" stroke-width="3" stroke-linecap="round"/>
+        <line x1="124" y1="152" x2="136" y2="152" stroke="#4b5563" stroke-width="3" stroke-linecap="round"/>`;
     } else if (equip === "bench_incline") {
       html += `
-        <line x1="62" y1="62" x2="112" y2="118" stroke="#3a404d" stroke-width="8" stroke-linecap="round"/>
-        <line x1="112" y1="122" x2="144" y2="122" stroke="#3a404d" stroke-width="7" stroke-linecap="round"/>
-        <line x1="86" y1="92" x2="86" y2="152" stroke="#3a404d" stroke-width="3"/>
-        <line x1="134" y1="125" x2="134" y2="152" stroke="#3a404d" stroke-width="3"/>`;
+        <line x1="62" y1="62" x2="112" y2="118" stroke="#3f4654" stroke-width="9" stroke-linecap="round"/>
+        <line x1="112" y1="122" x2="144" y2="122" stroke="#3f4654" stroke-width="8" stroke-linecap="round"/>
+        <line x1="86" y1="92" x2="86" y2="152" stroke="#3a404d" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="134" y1="125" x2="134" y2="152" stroke="#3a404d" stroke-width="3.5" stroke-linecap="round"/>`;
     } else if (equip === "pullup_bar") {
       html += `
-        <line x1="70" y1="26" x2="150" y2="26" stroke="#6b7280" stroke-width="4" stroke-linecap="round"/>
-        <line x1="72" y1="26" x2="72" y2="152" stroke="#262a34" stroke-width="2"/>
-        <line x1="148" y1="26" x2="148" y2="152" stroke="#262a34" stroke-width="2"/>`;
+        <line x1="68" y1="26" x2="152" y2="26" stroke="#9ca3af" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="72" y1="26" x2="72" y2="152" stroke="#2a303c" stroke-width="2.5"/>
+        <line x1="148" y1="26" x2="148" y2="152" stroke="#2a303c" stroke-width="2.5"/>`;
     } else if (equip === "dip_bars") {
       html += `
-        <line x1="84" y1="92" x2="132" y2="92" stroke="#6b7280" stroke-width="4" stroke-linecap="round"/>
-        <line x1="90" y1="92" x2="90" y2="152" stroke="#3a404d" stroke-width="3"/>
-        <line x1="126" y1="92" x2="126" y2="152" stroke="#3a404d" stroke-width="3"/>`;
+        <line x1="84" y1="92" x2="132" y2="92" stroke="#9ca3af" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="90" y1="92" x2="90" y2="152" stroke="#3a404d" stroke-width="3.5"/>
+        <line x1="126" y1="92" x2="126" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "machine_seat") {
       html += `
-        <rect x="88" y="44" width="8" height="64" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
-        <rect x="88" y="106" width="44" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
-        <line x1="102" y1="114" x2="102" y2="152" stroke="#3a404d" stroke-width="3"/>`;
+        <rect x="86" y="42" width="9" height="66" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
+        <rect x="86" y="106" width="46" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
+        <line x1="102" y1="115" x2="102" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "lat_machine") {
       html += `
-        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>
-        <line x1="70" y1="14" x2="156" y2="14" stroke="#3a404d" stroke-width="4" stroke-linecap="round"/>
-        <rect x="88" y="108" width="44" height="8" rx="2" fill="#191c22" stroke="#3a404d" stroke-width="1"/>
-        <line x1="104" y1="116" x2="104" y2="152" stroke="#3a404d" stroke-width="3"/>`;
+        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>
+        <line x1="70" y1="14" x2="156" y2="14" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
+        <rect x="86" y="108" width="46" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
+        <line x1="104" y1="117" x2="104" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "cable_high" || equip === "cable_mid") {
       const py = equip === "cable_high" ? 36 : 78;
       html += `
-        <line x1="36" y1="20" x2="36" y2="152" stroke="#3a404d" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="36" cy="${py}" r="4" fill="#dc2626"/>
-        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+        <line x1="36" y1="20" x2="36" y2="152" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
+        <circle cx="36" cy="${py}" r="5" fill="#191c22" stroke="#dc2626" stroke-width="2"/>
+        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>`;
     } else if (equip === "leg_press") {
       html += `
-        <line x1="50" y1="74" x2="88" y2="122" stroke="#3a404d" stroke-width="8" stroke-linecap="round"/>
-        <line x1="88" y1="124" x2="116" y2="124" stroke="#3a404d" stroke-width="7" stroke-linecap="round"/>
-        <line x1="138" y1="102" x2="174" y2="68" stroke="#262a34" stroke-width="3"/>`;
+        <line x1="50" y1="74" x2="88" y2="122" stroke="#3f4654" stroke-width="9" stroke-linecap="round"/>
+        <line x1="88" y1="124" x2="116" y2="124" stroke="#3f4654" stroke-width="8" stroke-linecap="round"/>
+        <line x1="138" y1="102" x2="174" y2="68" stroke="#2a303c" stroke-width="3.5"/>`;
     }
     return html;
+  }
+
+  function taperedLimb(a, b, r1, r2, fill, stroke = "none") {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const p1 = `${(a[0] + nx * r1).toFixed(1)},${(a[1] + ny * r1).toFixed(1)}`;
+    const p2 = `${(b[0] + nx * r2).toFixed(1)},${(b[1] + ny * r2).toFixed(1)}`;
+    const p3 = `${(b[0] - nx * r2).toFixed(1)},${(b[1] - ny * r2).toFixed(1)}`;
+    const p4 = `${(a[0] - nx * r1).toFixed(1)},${(a[1] - ny * r1).toFixed(1)}`;
+    return `
+      <polygon points="${p1} ${p2} ${p3} ${p4}" fill="${fill}" stroke="${stroke}" stroke-width="0.6" stroke-linejoin="round"/>
+      <circle cx="${a[0].toFixed(1)}" cy="${a[1].toFixed(1)}" r="${r1}" fill="${fill}"/>
+      <circle cx="${b[0].toFixed(1)}" cy="${b[1].toFixed(1)}" r="${r2}" fill="${fill}"/>
+    `;
   }
 
   function renderStickmanFrame(rig, t) {
@@ -842,34 +1086,71 @@
     const p = lerpPose(rig.start, rig.end, ease);
     const equipSvg = drawEquipmentSvg(rig.equip, p.wr);
 
+    // Subtle far-side limb silhouette offset for 3D athletic depth
+    const off = [4, 2];
+    const farHip = [p.hip[0] + off[0], p.hip[1] + off[1]];
+    const farKn = [p.kn[0] + off[0], p.kn[1] + off[1]];
+    const farAn = [p.an[0] + off[0], p.an[1] + off[1]];
+    const farSh = [p.sh[0] + off[0], p.sh[1] - 1];
+    const farEl = [p.el[0] + off[0], p.el[1] + 1];
+    const farWr = [p.wr[0] + off[0], p.wr[1] + 1];
+
+    // Direction facing for shoe & head orientation
+    const dir = p.head[0] <= p.hip[0] ? -1 : 1;
+    const footDir = p.kn[0] >= p.hip[0] ? 1 : -1;
+
     let propSvg = "";
     if (rig.prop === "bar") {
       propSvg = `
-        <line x1="${p.wr[0] - 12}" y1="${p.wr[1]}" x2="${p.wr[0] + 12}" y2="${p.wr[1]}" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round"/>
-        <circle cx="${p.wr[0] - 12}" cy="${p.wr[1]}" r="5" fill="#f59e0b"/>
-        <circle cx="${p.wr[0] + 12}" cy="${p.wr[1]}" r="5" fill="#f59e0b"/>`;
+        <line x1="${p.wr[0] - 14}" y1="${p.wr[1]}" x2="${p.wr[0] + 14}" y2="${p.wr[1]}" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+        <rect x="${p.wr[0] - 16}" y="${p.wr[1] - 6}" width="4" height="12" rx="1" fill="#f59e0b"/>
+        <rect x="${p.wr[0] + 12}" y="${p.wr[1] - 6}" width="4" height="12" rx="1" fill="#f59e0b"/>`;
     } else if (rig.prop === "dumbbell") {
       propSvg = `
-        <rect x="${p.wr[0] - 6}" y="${p.wr[1] - 4}" width="12" height="8" rx="2" fill="#dc2626" stroke="#0b0c0e" stroke-width="1"/>`;
+        <rect x="${p.wr[0] - 7}" y="${p.wr[1] - 3.5}" width="14" height="7" rx="1.5" fill="#191c22" stroke="#f59e0b" stroke-width="1.2"/>
+        <rect x="${p.wr[0] - 7}" y="${p.wr[1] - 4.5}" width="4" height="9" rx="1" fill="#f59e0b"/>
+        <rect x="${p.wr[0] + 3}" y="${p.wr[1] - 4.5}" width="4" height="9" rx="1" fill="#f59e0b"/>`;
     }
 
-    const line = (a, b, color = "#f3f4f6", w = 4.5) =>
-      `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`;
-    const joint = (pt, r = 3.2, color = "#dc2626") =>
-      `<circle cx="${pt[0]}" cy="${pt[1]}" r="${r}" fill="${color}"/>`;
+    const shoe = (an, fill) => {
+      const sx = an[0];
+      const sy = an[1];
+      return `<path d="M${sx - 2 * footDir} ${sy - 2} L${sx + 8 * footDir} ${sy + 1.5} L${sx + 8 * footDir} ${sy + 3.5} L${sx - 3 * footDir} ${sy + 3.5} Z" fill="${fill}" rx="1"/>`;
+    };
 
     svg.innerHTML = `
       ${equipSvg}
-      ${line(p.hip, p.kn, "#9ca3af", 5)}
-      ${line(p.kn, p.an, "#9ca3af", 4.5)}
-      ${line(p.hip, p.neck, "#f3f4f6", 5.5)}
-      ${line(p.sh, p.el, "#dc2626", 4.5)}
-      ${line(p.el, p.wr, "#dc2626", 4)}
-      <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.5"/>
-      ${joint(p.sh, 3.5, "#dc2626")}
-      ${joint(p.el, 3, "#f87171")}
-      ${joint(p.hip, 3.5, "#d1d5db")}
-      ${joint(p.kn, 3, "#d1d5db")}
+
+      <!-- Far-side limbs (subtle depth) -->
+      ${taperedLimb(farHip, farKn, 5.2, 3.8, "#2a303c")}
+      ${taperedLimb(farKn, farAn, 3.6, 2.3, "#2a303c")}
+      ${taperedLimb(farSh, farEl, 3.8, 2.8, "#5a2024")}
+      ${taperedLimb(farEl, farWr, 2.8, 2.0, "#5a2024")}
+
+      <!-- Near-side Lower Body -->
+      ${taperedLimb(p.hip, p.kn, 6.2, 4.4, "#6b7280", "#111318")}
+      ${taperedLimb(p.kn, p.an, 4.3, 2.7, "#9ca3af", "#111318")}
+      ${shoe(p.an, "#e5e7eb")}
+
+      <!-- Neck & Structured Athletic Torso -->
+      ${taperedLimb(p.neck, p.head, 3.2, 2.8, "#d1d5db")}
+      ${taperedLimb(p.hip, p.neck, 5.4, 7.8, "#e5e7eb", "#111318")}
+
+      <!-- Head with subtle brow orientation -->
+      <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.2"/>
+      <line x1="${p.head[0] + 2 * dir}" y1="${p.head[1] - 1.5}" x2="${p.head[0] + 7 * dir}" y2="${p.head[1] - 1.5}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
+
+      <!-- Near-side Working Arm (Highlighted) -->
+      ${taperedLimb(p.sh, p.el, 4.6, 3.3, "#dc2626", "#0b0c0e")}
+      ${taperedLimb(p.el, p.wr, 3.3, 2.3, "#ef4444", "#0b0c0e")}
+      <circle cx="${p.wr[0]}" cy="${p.wr[1]}" r="3" fill="#f3f4f6"/>
+
+      <!-- Joint Markers -->
+      <circle cx="${p.sh[0]}" cy="${p.sh[1]}" r="2.2" fill="#fca5a5"/>
+      <circle cx="${p.el[0]}" cy="${p.el[1]}" r="1.8" fill="#fca5a5"/>
+      <circle cx="${p.hip[0]}" cy="${p.hip[1]}" r="2.2" fill="#d1d5db"/>
+      <circle cx="${p.kn[0]}" cy="${p.kn[1]}" r="1.8" fill="#e5e7eb"/>
+
       ${propSvg}
     `;
   }
@@ -907,6 +1188,17 @@
       ${ex.primary.map((m) => `<span class="badge badge-primary">${MUSCLES[m]} (Primary)</span>`).join("")}
       ${ex.secondary.map((m) => `<span class="badge badge-secondary">${MUSCLES[m]} (Secondary)</span>`).join("")}
     `;
+
+    const tiersEl = document.getElementById("form-modal-tiers");
+    const tierHtml = renderExerciseTierTableHtml(ex);
+    if (tierHtml) {
+      tiersEl.innerHTML = tierHtml;
+      tiersEl.classList.remove("hidden");
+    } else {
+      tiersEl.innerHTML = "";
+      tiersEl.classList.add("hidden");
+    }
+
     document.getElementById("form-modal-cues").innerHTML = activeFormRig.cues
       .map((c) => `<li>${escapeHtml(c)}</li>`)
       .join("");
@@ -924,46 +1216,179 @@
     activeFormRig = null;
   }
 
-  /* ---------------- REST TIMER ---------------- */
+  /* ---------------- SMART REST TIMER (TIMESTAMP-BASED + AUDIO/VIBRATE) ---------------- */
+  function playRestChime() {
+    try {
+      if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      [880, 1174.66].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + idx * 0.14;
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.exponentialRampToValueAtTime(0.14, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.24);
+      });
+    } catch {
+      // Ignore audio restrictions
+    }
+  }
+
+  function updateAutoRestButton() {
+    const btn = document.getElementById("btn-auto-rest-toggle");
+    if (!btn) return;
+    const settings = getProfileSettings();
+    btn.classList.toggle("active", Boolean(settings.autoRest));
+    btn.textContent = settings.autoRest ? "Auto: ON" : "Auto: OFF";
+  }
+
   function updateRestDisplay() {
     const disp = document.getElementById("rest-timer-display");
     const stopBtn = document.getElementById("btn-rest-stop");
+    const minusBtn = document.getElementById("btn-rest-minus");
+    const plusBtn = document.getElementById("btn-rest-plus");
     if (!disp || !stopBtn) return;
 
-    if (restRemaining > 0) {
-      disp.textContent = `Rest: ${formatDuration(restRemaining * 1000)}`;
+    const remainingSec = restEndsAt > Date.now() ? Math.ceil((restEndsAt - Date.now()) / 1000) : 0;
+    if (remainingSec > 0) {
+      disp.textContent = `Rest: ${formatDuration(remainingSec * 1000)}`;
       disp.style.color = "var(--primary)";
       stopBtn.classList.remove("hidden");
+      minusBtn?.classList.remove("hidden");
+      plusBtn?.classList.remove("hidden");
     } else {
       disp.textContent = "Rest: Ready";
       disp.style.color = "";
       stopBtn.classList.add("hidden");
+      minusBtn?.classList.add("hidden");
+      plusBtn?.classList.add("hidden");
     }
   }
 
   function startRestTimer(seconds) {
-    stopRestTimer();
-    restRemaining = seconds;
+    stopRestTimer(false);
+    const settings = getProfileSettings();
+    settings.defaultRestSec = seconds;
+    restEndsAt = Date.now() + seconds * 1000;
+    const active = getActiveWorkout();
+    if (active) active.restEndsAt = restEndsAt;
+    saveState();
+
     updateRestDisplay();
     restInterval = setInterval(() => {
-      restRemaining -= 1;
-      if (restRemaining <= 0) {
-        stopRestTimer();
-        document.getElementById("rest-timer-display").textContent = "Rest Done!";
-        document.getElementById("rest-timer-display").style.color = "var(--success)";
+      if (Date.now() >= restEndsAt) {
+        stopRestTimer(true);
+        const disp = document.getElementById("rest-timer-display");
+        if (disp) {
+          disp.textContent = "Rest Done!";
+          disp.style.color = "var(--success)";
+        }
+        playRestChime();
       } else {
         updateRestDisplay();
       }
-    }, 1000);
+    }, 500);
   }
 
-  function stopRestTimer() {
+  function adjustRestTimer(deltaSec) {
+    if (!restEndsAt || restEndsAt <= Date.now()) return;
+    restEndsAt = Math.max(Date.now() + 1000, restEndsAt + deltaSec * 1000);
+    const active = getActiveWorkout();
+    if (active) active.restEndsAt = restEndsAt;
+    saveState();
+    updateRestDisplay();
+  }
+
+  function stopRestTimer(clearSaved = true) {
     if (restInterval) {
       clearInterval(restInterval);
       restInterval = null;
     }
-    restRemaining = 0;
+    restEndsAt = 0;
+    if (clearSaved) {
+      const active = getActiveWorkout();
+      if (active && active.restEndsAt) {
+        active.restEndsAt = 0;
+        saveState();
+      }
+    }
     updateRestDisplay();
+  }
+
+  function restoreRestTimerIfNeeded() {
+    const active = getActiveWorkout();
+    if (active && active.restEndsAt && active.restEndsAt > Date.now()) {
+      const remSec = Math.ceil((active.restEndsAt - Date.now()) / 1000);
+      startRestTimer(remSec);
+    }
+  }
+
+  /* ---------------- PROGRESSIVE OVERLOAD ASSISTANT ---------------- */
+  function getHistoricalBest1RM(exerciseId) {
+    let best = 0;
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    for (const w of workouts) {
+      const match = w.exercises.find((e) => e.exerciseId === exerciseId);
+      if (!match) continue;
+      for (const s of match.sets) {
+        const weight = Number(s.weight) || 0;
+        const reps = Number(s.reps) || 0;
+        if (weight > 0 && reps > 0) {
+          const est = weight * (1 + reps / 30);
+          if (est > best) best = est;
+        }
+      }
+    }
+    return best;
+  }
+
+  function getOverloadSuggestion(exerciseId) {
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    for (const w of workouts) {
+      const match = w.exercises.find((e) => e.exerciseId === exerciseId);
+      if (!match || !match.sets.length) continue;
+      const validSets = match.sets.filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0);
+      if (!validSets.length) continue;
+
+      const topSet = validSets.reduce((best, s) => {
+        const bw = Number(best.weight) || 0;
+        const sw = Number(s.weight) || 0;
+        if (sw > bw) return s;
+        if (sw === bw && (Number(s.reps) || 0) > (Number(best.reps) || 0)) return s;
+        return best;
+      }, validSets[0]);
+
+      const lastW = Number(topSet.weight) || 0;
+      const lastR = Number(topSet.reps) || 0;
+      if (lastW > 0 && lastR >= 10) {
+        return {
+          weight: Number((lastW + 2.5).toFixed(2)),
+          reps: 8,
+          label: `Target: ${lastW + 2.5} kg × 8 (+2.5 kg)`
+        };
+      }
+      if (lastW > 0) {
+        return {
+          weight: lastW,
+          reps: lastR + 1,
+          label: `Target: ${lastW} kg × ${lastR + 1} (+1 rep)`
+        };
+      }
+      return {
+        weight: 0,
+        reps: lastR + 1,
+        label: `Target: ${lastR + 1} reps (+1 rep)`
+      };
+    }
+    return null;
   }
 
   /* ---------------- MUSCLE STIMULUS ENGINE ---------------- */
@@ -1114,11 +1539,109 @@
     });
   }
 
+  function computeTrainingStreak(profileId) {
+    const workouts = getProfileWorkouts(profileId);
+    if (!workouts.length) return { weekCount: 0, totalDays: 0, streakWeeks: 0 };
+
+    const uniqueDays = new Set(
+      workouts.map((w) => {
+        const d = new Date(w.endedAt);
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      })
+    );
+
+    const getMondayKey = (dateObj) => {
+      const d = new Date(dateObj);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      d.setDate(diff);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+
+    const weekSet = new Set(workouts.map((w) => getMondayKey(new Date(w.endedAt))));
+    const thisWeekMs = getMondayKey(new Date());
+    const lastWeekMs = thisWeekMs - 7 * 24 * 60 * 60 * 1000;
+    let streakWeeks = 0;
+    let cursor = weekSet.has(thisWeekMs) ? thisWeekMs : weekSet.has(lastWeekMs) ? lastWeekMs : null;
+    while (cursor !== null && weekSet.has(cursor)) {
+      streakWeeks += 1;
+      cursor -= 7 * 24 * 60 * 60 * 1000;
+    }
+
+    const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const weekCount = workouts.filter((w) => new Date(w.endedAt).getTime() >= cutoff7).length;
+    return { weekCount, totalDays: uniqueDays.size, streakWeeks };
+  }
+
+  function applyDashboardWidgetPrefs() {
+    const prefs = getDashboardPrefs();
+    document.querySelectorAll("[data-dash-widget]").forEach((el) => {
+      const key = el.dataset.dashWidget;
+      el.classList.toggle("hidden", prefs[key] === false);
+    });
+  }
+
+  function openCustomizeDashboardModal() {
+    const prefs = getDashboardPrefs();
+    const labels = [
+      ["session", "Session Action Card"],
+      ["kpis", "7-Day KPIs (Sessions, Volume, Sets)"],
+      ["streak", "Training Consistency & Weekly Streak"],
+      ["recommended", "Recommended Next Workout"],
+      ["quick_links", "Quick Links (Map & Stats)"],
+      ["recent", "Recent Sessions Overview"]
+    ];
+    const list = document.getElementById("customize-dash-list");
+    list.innerHTML = labels
+      .map(
+        ([key, label]) => `
+        <label class="widget-toggle-row">
+          <span>${label}</span>
+          <input type="checkbox" data-widget-pref="${key}" ${prefs[key] !== false ? "checked" : ""} />
+        </label>`
+      )
+      .join("");
+    openModal("modal-customize-dash");
+  }
+
   function renderDashboard() {
     const profile = getActiveProfile();
     document.getElementById("dash-greeting").textContent = `Hey, ${profile.name}`;
 
     const active = getActiveWorkout();
+    const recoveryEl = document.getElementById("dash-recovery-banner");
+    if (active) {
+      const doneSets = active.exercises.reduce(
+        (sum, ex) => sum + ex.sets.filter((s) => s.completed).length,
+        0
+      );
+      const elapsed = formatDuration(Date.now() - new Date(active.startedAt).getTime());
+      recoveryEl.classList.remove("hidden");
+      recoveryEl.innerHTML = `
+        <div>
+          <span class="eyebrow">Session Recovery</span>
+          <strong>${escapeHtml(active.title || "Active Workout")}</strong>
+          <div class="muted-note">${active.exercises.length} exercises · ${doneSets} completed sets · ${elapsed} elapsed</div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-recover-resume" class="btn btn-primary btn-sm" type="button">Resume</button>
+          <button id="btn-recover-discard" class="btn btn-danger-ghost btn-sm" type="button">Discard</button>
+        </div>
+      `;
+      document.getElementById("btn-recover-resume").addEventListener("click", () => switchView("workout"));
+      document.getElementById("btn-recover-discard").addEventListener("click", () => {
+        if (confirm("Discard this saved active session?")) {
+          stopRestTimer();
+          setActiveWorkout(null);
+          renderDashboard();
+        }
+      });
+    } else {
+      recoveryEl.classList.add("hidden");
+      recoveryEl.innerHTML = "";
+    }
+
     document.getElementById("dash-session-heading").textContent = active ? "Active Session in Progress" : "Ready to train";
     document.getElementById("btn-dash-start").textContent = active ? "Resume Workout" : "+ Start Workout";
 
@@ -1140,6 +1663,20 @@
     document.getElementById("kpi-workouts-7d").textContent = String(recent7.length);
     document.getElementById("kpi-volume-7d").textContent = `${Math.round(totalVol).toLocaleString()} kg`;
     document.getElementById("kpi-sets-7d").textContent = String(totalSets);
+
+    const streak = computeTrainingStreak(profile.id);
+    const streakEl = document.getElementById("dash-streak-card");
+    if (streakEl) {
+      streakEl.innerHTML = `
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">Consistency</span>
+            <strong>${streak.streakWeeks} Week${streak.streakWeeks === 1 ? "" : "s"} Active Streak</strong>
+          </div>
+          <span class="badge badge-secondary">${streak.totalDays} total days</span>
+        </div>
+      `;
+    }
 
     const { rec } = getSuggestedDay(profile.id);
     const focusEl = document.getElementById("dash-focus-banner");
@@ -1184,6 +1721,42 @@
     document.getElementById("dash-pr-summary").textContent = topPRs.length
       ? `${topPRs.length} exercise PR${topPRs.length === 1 ? "" : "s"} tracked · View 1RM charts`
       : "View 1RM progression & charts";
+
+    const recentOverviewEl = document.getElementById("dash-recent-overview");
+    if (recentOverviewEl) {
+      const top3 = allWorkouts.slice(0, 3);
+      recentOverviewEl.innerHTML = `
+        <div class="card-head" style="margin-bottom:8px;">
+          <div>
+            <span class="eyebrow">Recent</span>
+            <strong>Last Sessions</strong>
+          </div>
+          <button class="link-btn" type="button" data-nav-history="1">All</button>
+        </div>
+        ${
+          top3.length
+            ? `<div class="card-stack">${top3
+                .map(
+                  (w) => `
+                  <div class="muscle-ex-item" data-open-workout="${w.id}" style="cursor:pointer;">
+                    <span><strong>${escapeHtml(w.title)}</strong></span>
+                    <span class="muted-note">${formatDate(w.endedAt)}</span>
+                  </div>`
+                )
+                .join("")}</div>`
+            : `<div class="muted-note">No completed sessions yet.</div>`
+        }
+      `;
+      recentOverviewEl.querySelector("[data-nav-history]")?.addEventListener("click", () => {
+        switchView("analytics");
+        document.querySelector('.analytics-tab[data-tab="history"]')?.click();
+      });
+      recentOverviewEl.querySelectorAll("[data-open-workout]").forEach((el) => {
+        el.addEventListener("click", () => openWorkoutDetail(el.dataset.openWorkout));
+      });
+    }
+
+    applyDashboardWidgetPrefs();
 
     const recScroll = document.getElementById("dash-recommendations");
     recScroll.innerHTML = DAY_RECOMMENDATIONS.map(
@@ -1327,11 +1900,62 @@
   }
 
   /* ---------------- ANATOMICAL HEATMAP ---------------- */
+  function getRecoveryState(lastTrainedIso) {
+    if (!lastTrainedIso) return { className: "heat-rec-rested", label: "Rested (Not trained recently)" };
+    const hours = (Date.now() - new Date(lastTrainedIso).getTime()) / (1000 * 60 * 60);
+    if (hours < 24) return { className: "heat-rec-fatigued", label: `Fatigued (${Math.round(hours)}h ago)` };
+    if (hours < 48) return { className: "heat-rec-recovering", label: `Recovering (${Math.round(hours)}h ago)` };
+    if (hours <= 96) return { className: "heat-rec-fresh", label: `Fresh (${Math.round(hours / 24)}d ago)` };
+    return { className: "heat-rec-rested", label: `Rested (${Math.round(hours / 24)}d ago)` };
+  }
+
+  function renderBalancePanel(stats) {
+    const el = document.getElementById("anatomy-balance-panel");
+    if (!el) return;
+
+    const sumSets = (keys) => keys.reduce((sum, k) => sum + (stats[k]?.weightedSets || 0), 0);
+    const pushSets = sumSets(["chest", "front_delts", "triceps"]);
+    const pullSets = sumSets(["lats", "mid_back", "rear_delts", "biceps"]);
+    const upperSets = sumSets(["chest", "front_delts", "side_delts", "rear_delts", "traps", "lats", "mid_back", "biceps", "triceps", "forearms"]);
+    const lowerSets = sumSets(["quads", "hamstrings", "glutes", "calves"]);
+
+    const pushPullRatio = pullSets > 0 ? (pushSets / pullSets).toFixed(2) : pushSets > 0 ? "∞" : "—";
+    const upperLowerRatio = lowerSets > 0 ? (upperSets / lowerSets).toFixed(2) : upperSets > 0 ? "∞" : "—";
+
+    const lowestMuscle = Object.entries(stats)
+      .sort((a, b) => a[1].weightedSets - b[1].weightedSets)[0];
+
+    el.innerHTML = `
+      <span class="eyebrow">Balance Diagnostics</span>
+      <div class="balance-grid">
+        <div class="kpi-box">
+          <span class="kpi-label">Push / Pull Ratio</span>
+          <strong class="kpi-value">${pushPullRatio}</strong>
+          <span class="muted-note">${pushSets.toFixed(1).replace(/\.0$/, "")} vs ${pullSets.toFixed(1).replace(/\.0$/, "")} sets</span>
+        </div>
+        <div class="kpi-box">
+          <span class="kpi-label">Upper / Lower</span>
+          <strong class="kpi-value">${upperLowerRatio}</strong>
+          <span class="muted-note">${upperSets.toFixed(1).replace(/\.0$/, "")} vs ${lowerSets.toFixed(1).replace(/\.0$/, "")} sets</span>
+        </div>
+      </div>
+      ${
+        lowestMuscle
+          ? `<div class="muted-note">Least stimulated: <strong>${MUSCLES[lowestMuscle[0]]}</strong> (${lowestMuscle[1].weightedSets.toFixed(1).replace(/\.0$/, "")} sets)</div>`
+          : ""
+      }
+    `;
+  }
+
   function renderAnatomy() {
     document.getElementById("svg-front").classList.toggle("active", currentSide === "front");
     document.getElementById("svg-back").classList.toggle("active", currentSide === "back");
     document.getElementById("btn-view-front").classList.toggle("active", currentSide === "front");
     document.getElementById("btn-view-back").classList.toggle("active", currentSide === "back");
+
+    document.querySelectorAll(".metric-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.metric === currentMetric);
+    });
 
     const cutoff =
       currentWindow === "all" ? 0 : Date.now() - Number(currentWindow) * 24 * 60 * 60 * 1000;
@@ -1339,24 +1963,45 @@
       (w) => new Date(w.endedAt).getTime() >= cutoff
     );
     const windowLabel =
-      currentWindow === "7" ? "7-Day Stimulus" : currentWindow === "30" ? "30-Day Volume" : "All-Time Total";
+      currentWindow === "7" ? "7-Day" : currentWindow === "30" ? "30-Day" : "All-Time";
+    const metricLabel =
+      currentMetric === "sets" ? "Stimulus" : currentMetric === "volume" ? "Volume" : "Recovery";
     document.getElementById("heatmap-window-summary").textContent =
-      `${windowLabel} · ${windowWorkouts.length} workout${windowWorkouts.length === 1 ? "" : "s"} · Tap any muscle`;
+      `${windowLabel} ${metricLabel} · ${windowWorkouts.length} workout${windowWorkouts.length === 1 ? "" : "s"} · Tap any muscle`;
 
     const stats = computeMuscleStats(state.activeProfileId, currentWindow);
+    const allTimeStats = currentMetric === "recovery" ? computeMuscleStats(state.activeProfileId, "all") : stats;
+    const maxVol = Math.max(1, ...Object.values(stats).map((s) => s.volume || 0));
 
     document.querySelectorAll(".muscle-part").forEach((el) => {
       const m = el.dataset.muscle;
-      const level = getHeatLevel(stats[m]?.weightedSets || 0, currentWindow);
-      el.classList.remove("heat-0", "heat-1", "heat-2", "heat-3", "heat-4", "selected");
-      el.classList.add(`heat-${level}`);
+      el.classList.remove(
+        "heat-0", "heat-1", "heat-2", "heat-3", "heat-4",
+        "heat-rec-fresh", "heat-rec-recovering", "heat-rec-fatigued", "heat-rec-rested",
+        "selected"
+      );
+
+      if (currentMetric === "recovery") {
+        const rec = getRecoveryState(allTimeStats[m]?.lastTrained);
+        el.classList.add(rec.className);
+      } else if (currentMetric === "volume") {
+        const vol = stats[m]?.volume || 0;
+        const ratio = vol / maxVol;
+        const level = vol <= 0 ? 0 : ratio < 0.25 ? 1 : ratio < 0.5 ? 2 : ratio < 0.8 ? 3 : 4;
+        el.classList.add(`heat-${level}`);
+      } else {
+        const level = getHeatLevel(stats[m]?.weightedSets || 0, currentWindow);
+        el.classList.add(`heat-${level}`);
+      }
+
       if (m === selectedMuscle) el.classList.add("selected");
     });
 
-    renderMusclePanel(stats);
+    renderMusclePanel(stats, allTimeStats);
+    renderBalancePanel(stats);
   }
 
-  function renderMusclePanel(stats) {
+  function renderMusclePanel(stats, allTimeStats = stats) {
     const statusEl = document.getElementById("muscle-panel-status");
     const nameEl = document.getElementById("muscle-panel-name");
     const statsGrid = document.getElementById("muscle-panel-stats");
@@ -1373,10 +2018,14 @@
     }
 
     const s = stats[selectedMuscle] || { weightedSets: 0, volume: 0, lastTrained: null };
-    const level = getHeatLevel(s.weightedSets, currentWindow);
-    const labels = ["Untrained", "Light Stimulus", "Moderate Load", "High Volume", "Peak Load"];
+    if (currentMetric === "recovery") {
+      statusEl.textContent = getRecoveryState(allTimeStats[selectedMuscle]?.lastTrained).label;
+    } else {
+      const level = getHeatLevel(s.weightedSets, currentWindow);
+      const labels = ["Untrained", "Light Stimulus", "Moderate Load", "High Volume", "Peak Load"];
+      statusEl.textContent = labels[level];
+    }
 
-    statusEl.textContent = labels[level];
     nameEl.textContent = MUSCLES[selectedMuscle] || selectedMuscle;
     statsGrid.classList.remove("hidden");
     filterBtn.classList.remove("hidden");
@@ -1447,6 +2096,143 @@
     switchView("workout");
   }
 
+  function openSwapModal(exIdx) {
+    const active = getActiveWorkout();
+    if (!active || !active.exercises[exIdx]) return;
+    swapTargetExIdx = exIdx;
+    const sourceEx = getExerciseById(active.exercises[exIdx].exerciseId);
+    document.getElementById("swap-source-info").textContent = sourceEx
+      ? `Replacing ${sourceEx.name} (${sourceEx.primary.map((m) => MUSCLES[m]).join(", ")})`
+      : "";
+    document.getElementById("swap-search-input").value = "";
+    renderSwapList("");
+    openModal("modal-exercise-swap");
+  }
+
+  function renderSwapList(query) {
+    const active = getActiveWorkout();
+    if (!active || swapTargetExIdx === null) return;
+    const sourceEx = getExerciseById(active.exercises[swapTargetExIdx]?.exerciseId);
+    if (!sourceEx) return;
+
+    const q = query.trim().toLowerCase();
+    const scored = state.exercises
+      .filter((ex) => ex.id !== sourceEx.id)
+      .map((ex) => {
+        let score = 0;
+        ex.primary.forEach((m) => {
+          if (sourceEx.primary.includes(m)) score += 3;
+          else if (sourceEx.secondary.includes(m)) score += 1;
+        });
+        ex.secondary.forEach((m) => {
+          if (sourceEx.primary.includes(m)) score += 1.5;
+          else if (sourceEx.secondary.includes(m)) score += 0.5;
+        });
+        return { ex, score };
+      })
+      .filter(({ ex }) => {
+        if (!q) return true;
+        return (
+          ex.name.toLowerCase().includes(q) ||
+          ex.equipment.toLowerCase().includes(q) ||
+          ex.primary.some((m) => MUSCLES[m].toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => b.score - a.score || a.ex.name.localeCompare(b.ex.name));
+
+    const list = document.getElementById("swap-exercise-list");
+    list.innerHTML = scored
+      .slice(0, 25)
+      .map(
+        ({ ex, score }) => `
+        <div class="swap-card">
+          <div>
+            <strong>${escapeHtml(ex.name)}</strong>
+            <div class="muted-note">${escapeHtml(ex.equipment)} · ${ex.primary.map((m) => MUSCLES[m]).join(", ")}</div>
+            ${score > 0 ? `<span class="swap-score">Match score: ${score.toFixed(1).replace(/\.0$/, "")}</span>` : ""}
+          </div>
+          <button class="btn btn-primary btn-sm" type="button" data-confirm-swap="${ex.id}">Swap</button>
+        </div>`
+      )
+      .join("");
+
+    list.querySelectorAll("[data-confirm-swap]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (active && active.exercises[swapTargetExIdx]) {
+          active.exercises[swapTargetExIdx].exerciseId = btn.dataset.confirmSwap;
+          active.exercises[swapTargetExIdx].sets.forEach((s) => {
+            s.completed = false;
+          });
+          saveState();
+          closeModal("modal-exercise-swap");
+          renderWorkoutView();
+        }
+      });
+    });
+  }
+
+  function openPlateCalculator(prefillWeight) {
+    const input = document.getElementById("plate-target-weight");
+    if (prefillWeight && Number(prefillWeight) > 0) {
+      input.value = String(prefillWeight);
+    }
+    renderPlateCalculation();
+    openModal("modal-plate-calc");
+  }
+
+  function renderPlateCalculation() {
+    const target = Number(document.getElementById("plate-target-weight").value) || 0;
+    const bar = Number(document.getElementById("plate-bar-weight").value) || 0;
+    const resultEl = document.getElementById("plate-calc-result");
+
+    if (target < bar) {
+      resultEl.innerHTML = `<div class="muted-note">Target weight (${target} kg) is less than the bar weight (${bar} kg).</div>`;
+      return;
+    }
+
+    const plateSizes = [25, 20, 15, 10, 5, 2.5, 1.25];
+    let perSideRemaining = (target - bar) / 2;
+    const platesPerSide = [];
+
+    for (const p of plateSizes) {
+      while (perSideRemaining >= p - 0.001) {
+        platesPerSide.push(p);
+        perSideRemaining -= p;
+      }
+    }
+
+    const achievedPerSide = platesPerSide.reduce((s, p) => s + p, 0);
+    const achievedTotal = bar + achievedPerSide * 2;
+    const counts = {};
+    platesPerSide.forEach((p) => {
+      counts[p] = (counts[p] || 0) + 1;
+    });
+
+    const summaryText = platesPerSide.length
+      ? Object.entries(counts)
+          .map(([p, c]) => `${c} × ${p} kg`)
+          .join(" + ")
+      : "Empty bar (no plates)";
+
+    const chipClass = (p) => `p${String(p).replace(".", "_")}`;
+
+    resultEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>Per Side: ${escapeHtml(summaryText)}</strong>
+        <span class="badge badge-primary">${achievedTotal} kg total</span>
+      </div>
+      ${
+        Math.abs(achievedTotal - target) > 0.01
+          ? `<div class="muted-note" style="color:var(--warning);">Nearest standard load: ${achievedTotal} kg (diff ${(achievedTotal - target).toFixed(2)} kg)</div>`
+          : ""
+      }
+      <div class="plate-bar-visual">
+        <div class="plate-sleeve"></div>
+        ${platesPerSide.map((p) => `<span class="plate-chip ${chipClass(p)}">${p}</span>`).join("")}
+      </div>
+    `;
+  }
+
   function renderWorkoutView() {
     const active = getActiveWorkout();
     const idleEl = document.getElementById("workout-idle");
@@ -1458,7 +2244,7 @@
     }
 
     if (!active) {
-      stopRestTimer();
+      stopRestTimer(false);
       idleEl.classList.remove("hidden");
       activeEl.classList.add("hidden");
       renderWorkoutRecommendations();
@@ -1469,6 +2255,9 @@
     idleEl.classList.add("hidden");
     activeEl.classList.remove("hidden");
     document.getElementById("workout-title-input").value = active.title;
+    updateAutosaveIndicator();
+    updateAutoRestButton();
+    restoreRestTimerIfNeeded();
 
     const updateTimer = () => {
       const elapsed = Date.now() - new Date(active.startedAt).getTime();
@@ -1488,17 +2277,24 @@
         const ex = getExerciseById(item.exerciseId);
         if (!ex) return "";
         const lastHint = getLastExerciseSummary(ex.id);
+        const overload = getOverloadSuggestion(ex.id);
+        const histBest1RM = getHistoricalBest1RM(ex.id);
+
         const setsHtml = item.sets
-          .map(
-            (s, setIdx) => `
-            <div class="set-row">
-              <span class="set-num">${setIdx + 1}</span>
-              <input class="set-input" type="number" step="0.5" min="0" placeholder="kg" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
-              <input class="set-input" type="number" min="0" placeholder="reps" value="${s.reps}" data-ex="${exIdx}" data-set="${setIdx}" data-field="reps" />
-              <button class="set-check ${s.completed ? "done" : ""}" type="button" data-toggle-set="${exIdx}:${setIdx}">✓</button>
-              <button class="set-del" type="button" data-del-set="${exIdx}:${setIdx}">&times;</button>
-            </div>`
-          )
+          .map((s, setIdx) => {
+            const wNum = Number(s.weight) || 0;
+            const rNum = Number(s.reps) || 0;
+            const set1RM = wNum > 0 && rNum > 0 ? wNum * (1 + rNum / 30) : 0;
+            const isPR = histBest1RM > 0 && set1RM > histBest1RM;
+            return `
+              <div class="set-row">
+                <span class="set-num">${setIdx + 1}${isPR ? '<span class="pr-badge">PR!</span>' : ""}</span>
+                <input class="set-input" type="number" step="0.5" min="0" placeholder="kg" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
+                <input class="set-input" type="number" min="0" placeholder="reps" value="${s.reps}" data-ex="${exIdx}" data-set="${setIdx}" data-field="reps" />
+                <button class="set-check ${s.completed ? "done" : ""}" type="button" data-toggle-set="${exIdx}:${setIdx}">✓</button>
+                <button class="set-del" type="button" data-del-set="${exIdx}:${setIdx}">&times;</button>
+              </div>`;
+          })
           .join("");
 
         return `
@@ -1513,10 +2309,20 @@
                 </div>
               </div>
               <div class="btn-row">
+                ${ex.equipment === "Barbell" ? `<button class="btn btn-ghost btn-sm" type="button" data-open-plates="${exIdx}">Plates</button>` : ""}
+                <button class="btn btn-ghost btn-sm" type="button" data-swap-ex="${exIdx}">Swap</button>
                 <button class="btn btn-ghost btn-sm" type="button" data-open-form="${ex.id}">Form</button>
                 <button class="btn btn-danger-ghost btn-sm" type="button" data-remove-ex="${exIdx}">Remove</button>
               </div>
             </div>
+            ${
+              overload
+                ? `<div class="overload-bar">
+                    <span class="overload-text">${escapeHtml(overload.label)}</span>
+                    <button class="btn btn-secondary btn-sm" type="button" data-apply-target="${exIdx}">Apply Target</button>
+                  </div>`
+                : ""
+            }
             <div class="set-grid-head">
               <span>Set</span><span>Weight</span><span>Reps</span><span>Done</span><span></span>
             </div>
@@ -1530,6 +2336,36 @@
       btn.addEventListener("click", () => openExerciseFormModal(btn.dataset.openForm));
     });
 
+    container.querySelectorAll("[data-swap-ex]").forEach((btn) => {
+      btn.addEventListener("click", () => openSwapModal(Number(btn.dataset.swapEx)));
+    });
+
+    container.querySelectorAll("[data-open-plates]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const exIdx = Number(btn.dataset.openPlates);
+        const firstW = active.exercises[exIdx]?.sets.find((s) => Number(s.weight) > 0)?.weight || 60;
+        openPlateCalculator(firstW);
+      });
+    });
+
+    container.querySelectorAll("[data-apply-target]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const exIdx = Number(btn.dataset.applyTarget);
+        const exItem = active.exercises[exIdx];
+        if (!exItem) return;
+        const overload = getOverloadSuggestion(exItem.exerciseId);
+        if (!overload) return;
+        exItem.sets.forEach((s) => {
+          if (!s.completed) {
+            if (overload.weight > 0) s.weight = String(overload.weight);
+            s.reps = String(overload.reps);
+          }
+        });
+        saveState();
+        renderWorkoutView();
+      });
+    });
+
     container.querySelectorAll(".set-input").forEach((inp) => {
       inp.addEventListener("input", () => {
         const { ex, set, field } = inp.dataset;
@@ -1541,8 +2377,29 @@
     container.querySelectorAll("[data-toggle-set]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const [exIdx, setIdx] = btn.dataset.toggleSet.split(":").map(Number);
-        active.exercises[exIdx].sets[setIdx].completed = !active.exercises[exIdx].sets[setIdx].completed;
+        const exItem = active.exercises[exIdx];
+        const setObj = exItem.sets[setIdx];
+        const nextCompleted = !setObj.completed;
+
+        if (nextCompleted && !setObj.weight && !setObj.reps) {
+          const prevSet = setIdx > 0 ? exItem.sets[setIdx - 1] : null;
+          if (prevSet && (prevSet.weight || prevSet.reps)) {
+            setObj.weight = prevSet.weight;
+            setObj.reps = prevSet.reps;
+          } else {
+            const overload = getOverloadSuggestion(exItem.exerciseId);
+            if (overload) {
+              if (overload.weight > 0) setObj.weight = String(overload.weight);
+              setObj.reps = String(overload.reps);
+            }
+          }
+        }
+
+        setObj.completed = nextCompleted;
         saveState();
+        if (nextCompleted && getProfileSettings().autoRest) {
+          startRestTimer(getProfileSettings().defaultRestSec || 90);
+        }
         renderWorkoutView();
       });
     });
@@ -1760,6 +2617,8 @@
       return;
     }
 
+    const hasBodyInfo = getUserEffectiveWeight() !== null;
+
     listEl.innerHTML = filtered
       .map(
         (ex) => `
@@ -1769,12 +2628,16 @@
               <strong>${escapeHtml(ex.name)}</strong>
               <div class="muted-note">${escapeHtml(ex.equipment)}</div>
             </div>
-            <button class="btn btn-ghost btn-sm" type="button" data-open-form="${ex.id}">Form</button>
+            <div class="btn-row">
+              ${hasBodyInfo ? `<button class="btn btn-secondary btn-sm" type="button" data-toggle-tiers="${ex.id}">Tiers</button>` : ""}
+              <button class="btn btn-ghost btn-sm" type="button" data-open-form="${ex.id}">Form</button>
+            </div>
           </div>
           <div class="badge-row">
             ${ex.primary.map((m) => `<span class="badge badge-primary">${MUSCLES[m]} (1.0x)</span>`).join("")}
             ${ex.secondary.map((m) => `<span class="badge badge-secondary">${MUSCLES[m]} (0.5x)</span>`).join("")}
           </div>
+          ${hasBodyInfo ? `<div class="lib-tier-box hidden" data-tiers-for="${ex.id}"></div>` : ""}
         </div>`
       )
       .join("");
@@ -1782,6 +2645,26 @@
     listEl.querySelectorAll("[data-open-form]").forEach((btn) => {
       btn.addEventListener("click", () => openExerciseFormModal(btn.dataset.openForm));
     });
+
+    if (hasBodyInfo) {
+      listEl.querySelectorAll("[data-toggle-tiers]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const exId = btn.dataset.toggleTiers;
+          const box = listEl.querySelector(`[data-tiers-for="${exId}"]`);
+          const ex = getExerciseById(exId);
+          if (!box || !ex) return;
+          const isHidden = box.classList.contains("hidden");
+          if (isHidden) {
+            box.innerHTML = renderExerciseTierTableHtml(ex);
+            box.classList.remove("hidden");
+            btn.textContent = "Hide Tiers";
+          } else {
+            box.classList.add("hidden");
+            btn.textContent = "Tiers";
+          }
+        });
+      });
+    }
   }
 
   function openCustomExerciseModal() {
@@ -1802,13 +2685,118 @@
     openModal("modal-custom-exercise");
   }
 
-  /* ---------------- ANALYTICS, HISTORY & FULL BODY INFO ---------------- */
+  /* ---------------- ANALYTICS, CALENDAR, HISTORY & FULL BODY INFO ---------------- */
   function renderAnalytics() {
     renderVolumeChart();
     populateStrengthSelect();
     renderStrengthChart();
+    renderCalendar();
     renderWorkoutHistory();
     renderBodyStats();
+  }
+
+  function toLocalDateKey(isoOrDate) {
+    const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function renderCalendar() {
+    const labelEl = document.getElementById("cal-month-label");
+    const summaryEl = document.getElementById("cal-month-summary");
+    const gridEl = document.getElementById("cal-grid");
+    const detailEl = document.getElementById("cal-day-detail");
+    if (!labelEl || !gridEl) return;
+
+    const firstOfMonth = new Date(calYear, calMonth, 1);
+    labelEl.textContent = firstOfMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    const byDay = new Map();
+    let monthSessions = 0;
+    let monthVol = 0;
+
+    workouts.forEach((w) => {
+      const d = new Date(w.endedAt);
+      const key = toLocalDateKey(d);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(w);
+      if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+        monthSessions += 1;
+        monthVol += w.exercises.reduce(
+          (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+          0
+        );
+      }
+    });
+
+    summaryEl.textContent = `${monthSessions} session${monthSessions === 1 ? "" : "s"} · ${Math.round(monthVol).toLocaleString()} kg volume this month`;
+
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Mon=0..Sun=6
+    const todayKey = toLocalDateKey(new Date());
+
+    let cellsHtml = "";
+    for (let i = 0; i < startOffset; i++) {
+      cellsHtml += `<div class="cal-day empty"></div>`;
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const dayWorkouts = byDay.get(key) || [];
+      const dots = dayWorkouts
+        .slice(0, 3)
+        .map(() => `<span class="cal-dot"></span>`)
+        .join("");
+      const cls = [
+        "cal-day",
+        key === todayKey ? "today" : "",
+        dayWorkouts.length ? "has-workout" : "",
+        calSelectedDateKey === key ? "selected" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      cellsHtml += `
+        <button class="${cls}" type="button" data-cal-day="${key}">
+          <span>${day}</span>
+          <div class="cal-dot-row">${dots}</div>
+        </button>`;
+    }
+    gridEl.innerHTML = cellsHtml;
+
+    gridEl.querySelectorAll("[data-cal-day]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        calSelectedDateKey = btn.dataset.calDay;
+        renderCalendar();
+      });
+    });
+
+    const activeKey = calSelectedDateKey || todayKey;
+    const dayList = byDay.get(activeKey) || [];
+    if (!dayList.length) {
+      detailEl.innerHTML = `<div class="empty-state">No workouts logged on ${activeKey}.</div>`;
+    } else {
+      detailEl.innerHTML = dayList
+        .map((w) => {
+          const vol = w.exercises.reduce(
+            (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+            0
+          );
+          return `
+            <div class="card" data-open-workout="${w.id}" style="cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>${escapeHtml(w.title)}</strong>
+                <span class="muted-note">${activeKey}</span>
+              </div>
+              <div class="muted-note" style="margin-top:4px;">${w.exercises.length} exercises · ${Math.round(vol).toLocaleString()} kg</div>
+            </div>`;
+        })
+        .join("");
+      detailEl.querySelectorAll("[data-open-workout]").forEach((card) => {
+        card.addEventListener("click", () => openWorkoutDetail(card.dataset.openWorkout));
+      });
+    }
   }
 
   function renderVolumeChart() {
@@ -2085,6 +3073,61 @@
     URL.revokeObjectURL(url);
   }
 
+  function csvEscape(val) {
+    const s = String(val ?? "");
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  function exportCsv() {
+    const profile = getActiveProfile();
+    const workouts = getProfileWorkouts(profile.id);
+    if (!workouts.length) {
+      alert(`No completed workouts to export for ${profile.name}.`);
+      return;
+    }
+
+    const rows = [
+      ["Date", "Workout", "Exercise", "Equipment", "Set", "Weight_kg", "Reps", "Volume_kg", "Est_1RM_kg"].join(",")
+    ];
+    workouts.forEach((w) => {
+      const dateStr = new Date(w.endedAt).toISOString();
+      w.exercises.forEach((item) => {
+        const ex = getExerciseById(item.exerciseId);
+        const exName = ex ? ex.name : item.exerciseId;
+        const equip = ex ? ex.equipment : "";
+        item.sets.forEach((s, idx) => {
+          const wt = Number(s.weight) || 0;
+          const rp = Number(s.reps) || 0;
+          const vol = wt * rp;
+          const e1rm = wt > 0 && rp > 0 ? (wt * (1 + rp / 30)).toFixed(1) : "0";
+          rows.push(
+            [
+              csvEscape(dateStr),
+              csvEscape(w.title),
+              csvEscape(exName),
+              csvEscape(equip),
+              idx + 1,
+              wt,
+              rp,
+              vol,
+              e1rm
+            ].join(",")
+          );
+        });
+      });
+    });
+
+    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = profile.name.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "user";
+    a.download = `musclemap_${safeName}_history_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function importJson(file) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -2161,9 +3204,23 @@
     });
 
     document.getElementById("btn-export-json").addEventListener("click", exportJson);
+    document.getElementById("btn-export-csv").addEventListener("click", exportCsv);
+    document.getElementById("btn-history-export-csv").addEventListener("click", exportCsv);
     document.getElementById("input-import-json").addEventListener("change", (e) => {
       if (e.target.files[0]) importJson(e.target.files[0]);
       e.target.value = "";
+    });
+
+    document.getElementById("btn-customize-dash").addEventListener("click", openCustomizeDashboardModal);
+    document.getElementById("btn-save-dash-prefs").addEventListener("click", () => {
+      const nextPrefs = {};
+      document.querySelectorAll("[data-widget-pref]").forEach((cb) => {
+        nextPrefs[cb.dataset.widgetPref] = cb.checked;
+      });
+      state.dashboardPrefs[state.activeProfileId] = nextPrefs;
+      saveState();
+      closeModal("modal-customize-dash");
+      applyDashboardWidgetPrefs();
     });
 
     document.querySelectorAll(".dash-preset-btn").forEach((btn) => {
@@ -2176,6 +3233,10 @@
     document.getElementById("btn-dash-blank").addEventListener("click", startBlankWorkout);
     document.getElementById("btn-start-blank").addEventListener("click", startBlankWorkout);
     document.getElementById("btn-add-exercise").addEventListener("click", openExercisePicker);
+    document.getElementById("btn-open-plate-calc").addEventListener("click", () => openPlateCalculator());
+    document.getElementById("plate-target-weight").addEventListener("input", renderPlateCalculation);
+    document.getElementById("plate-bar-weight").addEventListener("change", renderPlateCalculation);
+    document.getElementById("swap-search-input").addEventListener("input", (e) => renderSwapList(e.target.value));
     document.getElementById("btn-finish-workout").addEventListener("click", finishWorkout);
     document.getElementById("btn-discard-workout").addEventListener("click", () => {
       if (confirm("Discard this active workout?")) {
@@ -2192,10 +3253,18 @@
       }
     });
 
+    document.getElementById("btn-auto-rest-toggle").addEventListener("click", () => {
+      const settings = getProfileSettings();
+      settings.autoRest = !settings.autoRest;
+      saveState();
+      updateAutoRestButton();
+    });
+    document.getElementById("btn-rest-minus").addEventListener("click", () => adjustRestTimer(-15));
+    document.getElementById("btn-rest-plus").addEventListener("click", () => adjustRestTimer(15));
     document.querySelectorAll("[data-rest]").forEach((btn) => {
       btn.addEventListener("click", () => startRestTimer(Number(btn.dataset.rest)));
     });
-    document.getElementById("btn-rest-stop").addEventListener("click", stopRestTimer);
+    document.getElementById("btn-rest-stop").addEventListener("click", () => stopRestTimer(true));
 
     document.getElementById("btn-view-front").addEventListener("click", () => {
       currentSide = "front";
@@ -2204,6 +3273,12 @@
     document.getElementById("btn-view-back").addEventListener("click", () => {
       currentSide = "back";
       renderAnatomy();
+    });
+    document.querySelectorAll(".metric-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentMetric = btn.dataset.metric;
+        renderAnatomy();
+      });
     });
     document.querySelectorAll(".window-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -2224,6 +3299,35 @@
         libraryMuscleFilter = selectedMuscle;
         switchView("library");
       }
+    });
+
+    document.getElementById("btn-cal-prev").addEventListener("click", () => {
+      calMonth -= 1;
+      if (calMonth < 0) {
+        calMonth = 11;
+        calYear -= 1;
+      }
+      renderCalendar();
+    });
+    document.getElementById("btn-cal-next").addEventListener("click", () => {
+      calMonth += 1;
+      if (calMonth > 11) {
+        calMonth = 0;
+        calYear += 1;
+      }
+      renderCalendar();
+    });
+    document.getElementById("btn-cal-today").addEventListener("click", () => {
+      const now = new Date();
+      calYear = now.getFullYear();
+      calMonth = now.getMonth();
+      calSelectedDateKey = toLocalDateKey(now);
+      renderCalendar();
+    });
+
+    window.addEventListener("beforeunload", saveState);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") saveState();
     });
 
     document.getElementById("exercise-search-input").addEventListener("input", renderLibrary);
