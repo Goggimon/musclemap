@@ -1,10 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v5.0";
+  const APP_VERSION = "v5.1";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v5.1",
+      date: "2026-11-15",
+      items: [
+        "Switched Form Viewer back to the crisp 2D athletic stickman with zero loading delay and full muscle-group highlighting (Primary red, Secondary amber)",
+        "Added live joint-angle arcs and degree readouts (°), curved movement trajectories, and spine posture lines under Guides: ON/OFF",
+        "Added Mistake: OFF/ON comparison mode on every exercise plus a full Form Guide section (Setup, Tempo & Breathing, Target Angles, and What to Look Out For)"
+      ]
+    },
     {
       version: "v5.0",
       date: "2026-11-15",
@@ -782,7 +791,10 @@
   let formAnimPhase = 0;
   let formLastTs = 0;
   let activeFormRig = null;
-  let using3DForm = false;
+  let activeFormRigKey = "curl";
+  let activeFormExercise = null;
+  let formGuidesOn = true;
+  let formMistakeOn = false;
 
   function mergeById(existing, incoming) {
     const map = new Map(existing.map((item) => [item.id, item]));
@@ -1223,15 +1235,502 @@
     `;
   }
 
+  const FORM_COACH_META = {
+    bench_press: {
+      angleMode: "elbow", track: "wr",
+      setup: "Eyes under the bar, shoulder blades squeezed down and back, feet planted flat on the floor.",
+      tempo: "2s controlled lower to mid-chest, brief pause, explosive 1s press; inhale down, exhale up.",
+      targetAngles: "Elbows ~45° tucked to torso · 75°–170° elbow extension",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Flaring elbows to 90° and flattening your shoulders puts excess stress on the shoulder joint.",
+      lookOutFor: "Do not bounce the bar off your sternum or flare elbows straight out to 90°."
+    },
+    incline_press: {
+      angleMode: "elbow", track: "wr",
+      setup: "Set bench to 30–45°, pin upper back to pad, and keep wrists stacked directly over elbows.",
+      tempo: "2–3s lower toward upper chest, 1s press up and slightly inward; exhale at top.",
+      targetAngles: "Bench 30–45° · Elbows ~45° tucked · 80°–170° elbow range",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Flaring elbows wide or lifting your upper back off the incline pad shifts load to front delts.",
+      lookOutFor: "Avoid excessive lower-back arch or pressing too far forward over your belly."
+    },
+    chest_fly: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Lie flat with shoulder blades retracted and maintain a soft 15–20° bend at the elbows.",
+      tempo: "3s wide stretch until pecs feel taut, 1s hug back together without clanging weights.",
+      targetAngles: "Fixed ~155° elbow bend · Wide shoulder adduction arc",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Bending elbows too far turns the fly into a press; dropping shoulders forward loses pec tension.",
+      lookOutFor: "Keep the elbow angle locked—do not bend and straighten like a dumbbell press."
+    },
+    db_pullover: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Support upper back on bench, brace core, and cup one dumbbell overhead with soft elbows.",
+      tempo: "3s slow reach behind head to a lat/chest stretch, 1.5s pull back over sternum.",
+      targetAngles: "Fixed ~155°–165° elbow · Shoulder arc 85°–165°",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Over-arching your ribcage/lower back fakes range of motion without stretching the lats.",
+      lookOutFor: "Keep ribs tucked down; stop lowering if your lower back starts lifting off the bench."
+    },
+    cable_fly: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Set pulleys at chest height, step into a staggered stance, and keep chest proud.",
+      tempo: "2s controlled open to chest line, 1s sweep together with a 1s peak squeeze.",
+      targetAngles: "Soft ~150° elbow bend · Horizontal sweep in front of sternum",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Leaning and jerking forward with momentum instead of isolating the pecs.",
+      lookOutFor: "Do not let your shoulders roll forward at the finish of each rep."
+    },
+    pec_deck: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Adjust seat so handles align with mid-chest; keep shoulder blades pinned to backrest.",
+      tempo: "2s controlled open, 1s smooth squeeze to center, 1s pause at peak contraction.",
+      targetAngles: "Upper arms ~80°–90° to torso · Fixed soft elbow ~140°",
+      mistakeType: "shrug_traps",
+      mistakeNote: "Mistake: Shrugging shoulders up toward your ears shifts tension into upper traps.",
+      lookOutFor: "Keep shoulders depressed down away from your ears throughout the set."
+    },
+    machine_press: {
+      angleMode: "elbow", track: "wr",
+      setup: "Set seat so handles sit at mid-chest level; plant feet and press upper back into pad.",
+      tempo: "2s controlled return, 1s press forward stopping just short of hard elbow lockout.",
+      targetAngles: "Elbows ~45° below shoulders · 80°–168° elbow extension",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Letting shoulders roll off the backrest at lockout reduces pec tension.",
+      lookOutFor: "Keep shoulder blades pinned back as your hands press forward."
+    },
+    dips: {
+      angleMode: "elbow", track: "wr",
+      setup: "Grip parallel bars with straight wrists, depress shoulders, and lean torso ~15–20° forward.",
+      tempo: "2–3s lower until upper arms reach parallel, 1s press back to full support.",
+      targetAngles: "Torso ~15–20° lean · Elbow bends to ~85°–90° at bottom",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Dropping too fast with flared elbows and shrugged shoulders strains the anterior capsule.",
+      lookOutFor: "Avoid swinging your legs or letting shoulders hike up toward your ears."
+    },
+    pushup: {
+      angleMode: "elbow", track: "head",
+      setup: "Hands just outside shoulder width, fingers forward, glutes and abs squeezed in a straight plank.",
+      tempo: "2s lower until chest hovers an inch above floor, 1s strong push through palms.",
+      targetAngles: "Straight 180° body line · Elbows ~45° from ribs · 85°–175° elbow",
+      mistakeType: "hip_sag",
+      mistakeNote: "Mistake: Letting hips sag toward the floor breaks core tension and strains the lower back.",
+      lookOutFor: "Keep your hips level with your shoulders—never let your lower back dip."
+    },
+    ohp: {
+      angleMode: "elbow", track: "wr",
+      setup: "Grip just outside shoulders, forearms vertical under bar, glutes and abs braced tight.",
+      tempo: "1s press straight overhead pushing head slightly through, 2s controlled lower to collarbone.",
+      targetAngles: "Vertical spine 90° · Elbow 65° at rack to 175° lockout",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Leaning back and turning an overhead press into a standing incline press.",
+      lookOutFor: "Squeeze glutes hard so your lower back does not hyperextend."
+    },
+    seated_ohp: {
+      angleMode: "elbow", track: "wr",
+      setup: "Sit tall against upright pad, elbows angled ~30° forward in the scapular plane.",
+      tempo: "2s lower to ear/chin level, 1s smooth press overhead without clanking weights.",
+      targetAngles: "Elbow 70° bottom to 172° top · Scapular plane path",
+      mistakeType: "shrug_traps",
+      mistakeNote: "Mistake: Shrugging traps up at the top or flaring elbows straight out to the sides.",
+      lookOutFor: "Keep elbows slightly in front of your ears rather than flared behind you."
+    },
+    lat_raise: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Stand tall with ~10° forward torso lean, soft elbow bend, weights beside thighs.",
+      tempo: "1.5s raise leading with elbows to shoulder height, 2.5s slow controlled lower.",
+      targetAngles: "Shoulder abduction 15°–88° · Fixed ~155° elbow bend",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Swinging your torso and shrugging traps to heave weights above shoulder height.",
+      lookOutFor: "Stop at shoulder level (90°); if you have to swing, drop the weight."
+    },
+    front_raise: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Stand upright with core braced, palms facing thighs, soft bend in elbows.",
+      tempo: "1.5s raise to eye/shoulder level, 2s controlled descent without dropping arms.",
+      targetAngles: "Shoulder flexion 15°–90° · Fixed ~160° elbow",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Rocking backward with your lower back to swing the dumbbells up.",
+      lookOutFor: "Keep your ribcage stacked over your pelvis the entire set."
+    },
+    rear_delt_fly: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Hinge hips to ~75°–85° with a flat back, letting arms hang beneath shoulders.",
+      tempo: "1.5s sweep out wide toward ceiling, 1s pause, 2s controlled lower.",
+      targetAngles: "Torso ~15°–25° above horizontal · Wide horizontal abduction",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Rounding the lower back or bobbing the torso upward on every rep.",
+      lookOutFor: "Sweep out wide rather than pulling straight back with your lats."
+    },
+    face_pull: {
+      angleMode: "elbow", track: "wr",
+      setup: "Set pulley at upper-chest/eye height, stagger stance, grip rope with thumbs back.",
+      tempo: "1.5s pull toward forehead driving elbows high/wide, 1s external rotation pause, 2s return.",
+      targetAngles: "Elbows ~85°–95° at peak · Upper arms parallel to floor",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Leaning far back and pulling with body weight instead of rear delts and mid-back.",
+      lookOutFor: "Finish with knuckles pointing behind you, not pulled down to your chest."
+    },
+    pullup: {
+      angleMode: "elbow", track: "head",
+      setup: "Hang with arms straight, grip just outside shoulders, depress shoulder blades before pulling.",
+      tempo: "1.5s pull chest toward bar, 1s top hold, 2.5s controlled lower to full dead hang.",
+      targetAngles: "Elbow 175° dead hang to ~55° top · Minimal hip swing",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Cutting the bottom stretch short (half-reps) or kipping with your legs.",
+      lookOutFor: "Lower all the way down until elbows straighten before starting the next rep."
+    },
+    lat_pulldown: {
+      angleMode: "elbow", track: "wr",
+      setup: "Lock thighs snugly under knee pad, grip wider than shoulders, lean back ~15°.",
+      tempo: "1.5s drive elbows down to ribs, 1s squeeze at upper chest, 2.5s stretch back up.",
+      targetAngles: "Torso ~105°–110° · Elbow 172° top to ~65° bottom",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Rocking backward past 45° to yank the bar down with momentum.",
+      lookOutFor: "Pull with your elbows down toward your hips, not by rounding your shoulders forward."
+    },
+    bent_row: {
+      angleMode: "elbow", track: "wr",
+      setup: "Hinge at hips to ~45° torso angle with a flat spine and knees slightly bent.",
+      tempo: "1s pull bar to lower ribs/navel, 1s squeeze shoulder blades, 2s controlled lower.",
+      targetAngles: "Torso ~45° hinge · Elbow 170° bottom to ~75° top",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Rounding the lumbar spine or standing nearly upright as the set gets heavy.",
+      lookOutFor: "Keep your torso angle locked at ~45° and spine neutral throughout."
+    },
+    single_arm_row: {
+      angleMode: "elbow", track: "wr",
+      setup: "Brace one knee and hand on bench with a flat, level torso parallel to the floor.",
+      tempo: "1.5s pull dumbbell in a slight arc toward your hip, 2s lower into a full lat stretch.",
+      targetAngles: "Flat horizontal spine · Elbow 172° stretch to ~80° peak",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Twisting the torso or rounding your lower back to heave the dumbbell up.",
+      lookOutFor: "Pull toward your hip pocket, not straight up into your armpit."
+    },
+    incline_row: {
+      angleMode: "elbow", track: "wr",
+      setup: "Lie chest-down on a 35–45° incline bench with feet planted firmly for stability.",
+      tempo: "1.5s row dumbbells toward hips squeezing shoulder blades, 2s controlled lower.",
+      targetAngles: "Bench 35–45° · Elbow 170° hang to ~80° top",
+      mistakeType: "shrug_traps",
+      mistakeNote: "Mistake: Lifting chest off the pad or shrugging shoulders up toward your ears.",
+      lookOutFor: "Keep your sternum glued to the bench pad on every rep."
+    },
+    seated_row: {
+      angleMode: "elbow", track: "wr",
+      setup: "Sit tall with knees slightly bent, chest lifted, and arms extended forward to feel lat stretch.",
+      tempo: "1.5s pull handle to lower stomach, 1s squeeze mid-back, 2s controlled return.",
+      targetAngles: "Upright ~90°–100° torso · Elbow 170° reach to ~75° pull",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Leaning way back to pull and collapsing your spine forward on the return.",
+      lookOutFor: "Move from your shoulder blades and elbows—not by rocking your lower back."
+    },
+    shrug: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Stand tall holding weights at sides with arms completely straight and core braced.",
+      tempo: "1s elevate shoulders straight toward ears, 1.5s squeeze at top, 2s slow lower.",
+      targetAngles: "Arms straight ~175° · Vertical scapular elevation",
+      mistakeType: "shrug_traps",
+      mistakeNote: "Mistake: Bending your elbows or rolling your shoulders in circles.",
+      lookOutFor: "Go straight up and straight down—never roll your shoulders."
+    },
+    curl: {
+      angleMode: "elbow", track: "wr",
+      setup: "Stand tall, pin elbows gently at your sides, palms up, chest lifted.",
+      tempo: "1.5s curl up flexing only at the elbow, 1s squeeze, 2.5s slow negative.",
+      targetAngles: "Upper arm vertical · Elbow 172° bottom to ~42° top",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Swinging your torso backward and letting elbows drift forward to cheat the weight up.",
+      lookOutFor: "Keep your upper arms pinned to your ribs from start to finish."
+    },
+    incline_curl: {
+      angleMode: "elbow", track: "wr",
+      setup: "Set bench to 45°, pin shoulder blades back, and let arms hang straight down behind torso.",
+      tempo: "1.5s curl forearms up keeping upper arms vertical, 2.5s slow lower to full stretch.",
+      targetAngles: "Bench 45° · Upper arm perpendicular to floor · Elbow 175° to ~48°",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Driving elbows forward as you curl removes the long-head bicep stretch.",
+      lookOutFor: "Keep elbows pointing straight at the floor throughout the rep."
+    },
+    preacher_curl: {
+      angleMode: "elbow", track: "wr",
+      setup: "Snug armpits over top of preacher pad, back of upper arms flat against pad.",
+      tempo: "1.5s smooth curl, 1s squeeze, 2.5s lower stopping just shy of hyperextension.",
+      targetAngles: "Upper arm locked on 45° pad · Elbow ~165° bottom to ~45° top",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Lifting elbows off the pad or bouncing out of the bottom stretch.",
+      lookOutFor: "Control the bottom 15° slowly to protect the distal bicep tendon."
+    },
+    tricep_pushdown: {
+      angleMode: "elbow", track: "wr",
+      setup: "Stand tall with slight forward lean, pin elbows tightly to ribs, grip rope/bar.",
+      tempo: "1s extend forearms straight down to full lockout, 1s squeeze, 2s controlled return.",
+      targetAngles: "Upper arm fixed · Elbow ~65° top to 175° full lockout",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Letting elbows flare forward/up or leaning your whole body weight onto the bar.",
+      lookOutFor: "Only your forearms should move—elbows stay glued to your sides."
+    },
+    tricep_overhead: {
+      angleMode: "elbow", track: "wr",
+      setup: "Sit upright, press weight overhead, and point elbows upward close to your ears.",
+      tempo: "2.5s lower behind head for a deep tricep stretch, 1.5s extend back overhead.",
+      targetAngles: "Upper arm near vertical · Elbow ~50° deep stretch to 172° top",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Flaring elbows wide out to the sides or arching lower back.",
+      lookOutFor: "Keep elbows narrow and pointing toward the ceiling."
+    },
+    skullcrusher: {
+      angleMode: "elbow", track: "wr",
+      setup: "Lie flat, angle upper arms slightly back (~15° past vertical) for constant tension.",
+      tempo: "2.5s bend elbows lowering weight just behind forehead, 1.5s extend back up.",
+      targetAngles: "Upper arm ~105° to torso · Elbow 170° top to ~55° bottom",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Flaring elbows outward or dropping upper arms forward during the press.",
+      lookOutFor: "Keep upper arms frozen in place; hinge strictly at the elbows."
+    },
+    kickback: {
+      angleMode: "elbow", track: "wr",
+      setup: "Hinge torso nearly horizontal, pin working upper arm parallel to your torso.",
+      tempo: "1s extend forearm straight back to full lockout, 1s squeeze, 2s controlled return.",
+      targetAngles: "Upper arm horizontal · Elbow ~85° start to 175° lockout",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Dropping your elbow down and swinging the dumbbell with momentum.",
+      lookOutFor: "Keep your upper arm high and parallel to the floor on every rep."
+    },
+    squat: {
+      angleMode: "knee", track: "hip",
+      setup: "Feet shoulder-width, toes slightly out, brace core 360° before unlocking hips and knees.",
+      tempo: "2.5s controlled descent to parallel or below, 1s drive evenly through mid-foot.",
+      targetAngles: "Knee 175° top to ~85°–95° bottom · Neutral torso angle",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Rounding your lower back at the bottom (butt wink) or letting knees cave inward.",
+      lookOutFor: "Keep chest proud and knees tracking directly over your middle toes."
+    },
+    lunge: {
+      angleMode: "knee", track: "hip",
+      setup: "Split stance hip-width apart for balance, torso tall with slight ~10° forward lean.",
+      tempo: "2s lower straight down until both knees reach ~90°, 1s drive through front mid-foot.",
+      targetAngles: "Front & back knees ~90° at bottom · Upright torso",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Letting the front knee collapse inward or slamming the back knee into the floor.",
+      lookOutFor: "Push through your front heel/mid-foot rather than pushing off your back toes."
+    },
+    leg_press: {
+      angleMode: "knee", track: "an",
+      setup: "Feet shoulder-width on sled, lower back and glutes pressed firmly into seat pad.",
+      tempo: "2.5s lower knees toward chest without tailbone curling, 1.5s press stopping shy of knee lock.",
+      targetAngles: "Knee ~168° top to ~85°–90° bottom · Tailbone stays glued",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Cutting depth short or curling your lower back off the seat at the bottom.",
+      lookOutFor: "Stop lowering just before your glutes lift off the pad; never snap knees into lockout."
+    },
+    leg_ext: {
+      angleMode: "knee", track: "an",
+      setup: "Align knee joint with machine pivot; ankle pad rests just above shoelaces; grip side handles.",
+      tempo: "1.5s extend to full straight leg, 1s hard quad squeeze, 2.5s slow lower.",
+      targetAngles: "Knee ~90° bottom to 175° full extension",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Swinging legs up with momentum or lifting hips out of the seat.",
+      lookOutFor: "Hold the top squeeze for a full second to maximize quad recruitment."
+    },
+    leg_curl: {
+      angleMode: "knee", track: "an",
+      setup: "Lock thigh pad snugly over legs, align knee with machine pivot, toes pulled slightly toward shins.",
+      tempo: "1.5s curl heels smoothly beneath seat, 1s hamstring squeeze, 2.5s controlled return.",
+      targetAngles: "Knee ~165° extended to ~65°–75° curled",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Letting the weight stack slam or cutting the bottom stretch short.",
+      lookOutFor: "Keep your hips pressed back into the seat pad throughout the curl."
+    },
+    lying_curl: {
+      angleMode: "knee", track: "an",
+      setup: "Lie face-down with knees just past bench edge and hips pressed firmly into pad.",
+      tempo: "1.5s curl heels toward glutes, 1s squeeze, 2.5s slow lower.",
+      targetAngles: "Hips flat 180° · Knee ~172° to ~65° curled",
+      mistakeType: "hip_sag",
+      mistakeNote: "Mistake: Lifting your butt off the bench as you curl steals tension from the hamstrings.",
+      lookOutFor: "Squeeze glutes into the bench so your hips never pop up."
+    },
+    rdl: {
+      angleMode: "hip", track: "wr",
+      setup: "Soft ~15° knee bend locked in place, lats tight, bar/dumbbells touching thighs.",
+      tempo: "3s push hips straight back keeping bar against legs, 1.5s drive hips forward to stand.",
+      targetAngles: "Fixed ~160° knee · Hip hinge from 175° down to ~85°–95°",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Rounding the lower back or letting the bar drift away from your shins.",
+      lookOutFor: "Stop lowering as soon as your hips stop moving backward—depth comes from hip hinge, not spine flexion."
+    },
+    hip_thrust: {
+      angleMode: "hip", track: "hip",
+      setup: "Lower shoulder blades anchored on bench edge, shins vertical at top, chin tucked.",
+      tempo: "1.5s drive through heels to flat torso, 1.5s hard glute squeeze, 2s controlled lower.",
+      targetAngles: "Top lockout: 180° torso-thigh line · 90° vertical shins",
+      mistakeType: "hip_sag",
+      mistakeNote: "Mistake: Hyperextending your lower back at the top instead of tilting pelvis via glutes.",
+      lookOutFor: "Keep ribs down and eyes forward so your lower back stays neutral at lockout."
+    },
+    calf_raise: {
+      angleMode: "knee", track: "hip",
+      setup: "Balls of feet on step edge, knees straight (~175°), core braced.",
+      tempo: "2s slow drop into deep ankle stretch, 1s pause at bottom, 1.5s drive onto big toes + 1s top hold.",
+      targetAngles: "Full ankle dorsiflexion to maximal plantarflexion",
+      mistakeType: "half_rep",
+      mistakeNote: "Mistake: Bouncing rapidly off the bottom Achilles tendon without pausing.",
+      lookOutFor: "Pause for 1 full second at the bottom stretch so momentum is zero."
+    },
+    hanging_raise: {
+      angleMode: "hip", track: "an",
+      setup: "Dead hang with shoulders engaged (depressed), legs straight or slightly bent.",
+      tempo: "1.5s curl pelvis upward toward ribs, 2.5s slow lower stopping swing.",
+      targetAngles: "Hip flexion from 180° hang up to ~75°–90°",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Swinging legs with momentum without curling your pelvis upward.",
+      lookOutFor: "Focus on rolling your tailbone up toward your belly button, not just lifting feet."
+    },
+    cable_crunch: {
+      angleMode: "hip", track: "head",
+      setup: "Kneel upright holding rope beside temples, lock hips stationary.",
+      tempo: "1.5s curl ribcage down toward pelvis exhaling hard, 2s controlled return.",
+      targetAngles: "Hips fixed · Thoracic/lumbar flexion ~165° down to ~95°",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Sitting hips back toward heels turns the crunch into a hip hinge.",
+      lookOutFor: "Keep your hips frozen over your knees—only your upper spine curls down."
+    },
+    woodchop: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Stand perpendicular to cable, wide athletic stance, arms nearly straight.",
+      tempo: "1.5s rotate torso across body pivoting back foot, 2s controlled return.",
+      targetAngles: "Arms ~160° · Diagonal torso rotation across midline",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Pulling only with your arms while keeping your ribcage and hips frozen.",
+      lookOutFor: "Let your torso and obliques drive the rotation while arms act as cables."
+    }
+  };
+
+  function getFormCoachMeta(rigKey, ex) {
+    const base = FORM_COACH_META[rigKey] || FORM_COACH_META.curl;
+    return base;
+  }
+
+  function apply2DMistakePose(p, rigKey, ease) {
+    if (!formMistakeOn) return p;
+    const meta = getFormCoachMeta(rigKey);
+    const out = {
+      head: [...p.head], neck: [...p.neck], sh: [...p.sh],
+      el: [...p.el], wr: [...p.wr], hip: [...p.hip], kn: [...p.kn], an: [...p.an]
+    };
+    const m = meta.mistakeType;
+    if (m === "elbow_flare") {
+      out.el[0] -= 14;
+      out.el[1] -= 10;
+      out.sh[1] -= 4;
+    } else if (m === "round_back") {
+      out.neck[1] += 10 * (0.4 + 0.6 * ease);
+      out.head[1] += 12 * (0.4 + 0.6 * ease);
+      out.sh[1] += 8 * (0.4 + 0.6 * ease);
+      out.kn[0] += 8 * ease;
+    } else if (m === "torso_swing") {
+      const lean = 16 * ease;
+      out.head[0] -= lean;
+      out.neck[0] -= lean * 0.85;
+      out.sh[0] -= lean * 0.7;
+      out.el[0] += 10 * ease;
+    } else if (m === "hip_sag") {
+      out.hip[1] += 14 * (0.5 + 0.5 * ease);
+    } else if (m === "shrug_traps") {
+      out.sh[1] -= 9;
+      out.el[1] -= 6;
+    } else if (m === "half_rep") {
+      // Half-rep is handled via t scaling; subtle stiffness cue
+      out.el[1] += 4 * ease;
+    }
+    return out;
+  }
+
+  function drawAngleArc2D(a, pivot, b, color = "#38bdf8") {
+    const v1x = a[0] - pivot[0];
+    const v1y = a[1] - pivot[1];
+    const v2x = b[0] - pivot[0];
+    const v2y = b[1] - pivot[1];
+    const l1 = Math.hypot(v1x, v1y);
+    const l2 = Math.hypot(v2x, v2y);
+    if (l1 < 4 || l2 < 4) return "";
+
+    const a1 = Math.atan2(v1y, v1x);
+    const a2 = Math.atan2(v2y, v2x);
+    let diff = a2 - a1;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    const deg = Math.round(Math.abs(diff) * (180 / Math.PI));
+    if (deg < 5 || deg > 179) return "";
+
+    const r = 13;
+    const x1 = pivot[0] + Math.cos(a1) * r;
+    const y1 = pivot[1] + Math.sin(a1) * r;
+    const x2 = pivot[0] + Math.cos(a1 + diff) * r;
+    const y2 = pivot[1] + Math.sin(a1 + diff) * r;
+    const sweep = diff >= 0 ? 1 : 0;
+
+    const midA = a1 + diff * 0.5;
+    const tx = pivot[0] + Math.cos(midA) * (r + 9);
+    const ty = pivot[1] + Math.sin(midA) * (r + 9) + 3;
+
+    return `
+      <path d="M ${pivot[0].toFixed(1)} ${pivot[1].toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 ${sweep} ${x2.toFixed(1)} ${y2.toFixed(1)} Z"
+            fill="rgba(56,189,248,0.22)" stroke="${color}" stroke-width="1"/>
+      <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="#7dd3fc" font-size="8.5" font-weight="700" text-anchor="middle">${deg}°</text>
+    `;
+  }
+
+  function drawTrajectory2D(rig, rigKey) {
+    const meta = getFormCoachMeta(rigKey);
+    const key = meta.track || "wr";
+    const pts = [];
+    for (let i = 0; i <= 14; i++) {
+      const rawT = i / 14;
+      const tEff = formMistakeOn && meta.mistakeType === "half_rep" ? rawT * 0.48 : rawT;
+      const ease = 0.5 - 0.5 * Math.cos(Math.PI * tEff);
+      let ptPose = lerpPose(rig.start, rig.end, ease);
+      if (formMistakeOn) ptPose = apply2DMistakePose(ptPose, rigKey, ease);
+      pts.push(ptPose[key]);
+    }
+    const dist = Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]);
+    if (dist < 4) return "";
+
+    const d = pts.map((pt, idx) => `${idx === 0 ? "M" : "L"}${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`).join(" ");
+    const strokeCol = formMistakeOn ? "#ef4444" : "#f59e0b";
+    const mid = pts[7];
+    const next = pts[8];
+    const ang = Math.atan2(next[1] - mid[1], next[0] - mid[0]) * (180 / Math.PI);
+
+    return `
+      <path d="${d}" fill="none" stroke="${strokeCol}" stroke-width="1.8" stroke-dasharray="3 2" opacity="0.88"/>
+      <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="2.6" fill="#22c55e"/>
+      <circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2.6" fill="#ef4444"/>
+      <polygon points="-3,-2.5 3,0 -3,2.5" fill="${strokeCol}" transform="translate(${mid[0].toFixed(1)},${mid[1].toFixed(1)}) rotate(${ang.toFixed(1)})"/>
+    `;
+  }
+
+  function getSegmentHighlightColor(ex, groupMuscles, fallback) {
+    if (!ex) return fallback;
+    if (ex.primary.some((m) => groupMuscles.includes(m))) return "#dc2626";
+    if (ex.secondary.some((m) => groupMuscles.includes(m))) return "#f59e0b";
+    return fallback;
+  }
+
   function renderStickmanFrame(rig, t) {
     const svg = document.getElementById("form-stickman-svg");
     if (!svg || !rig) return;
 
-    const ease = 0.5 - 0.5 * Math.cos(Math.PI * t);
-    const p = lerpPose(rig.start, rig.end, ease);
+    const meta = getFormCoachMeta(activeFormRigKey, activeFormExercise);
+    const tEff = formMistakeOn && meta.mistakeType === "half_rep" ? t * 0.48 : t;
+    const ease = 0.5 - 0.5 * Math.cos(Math.PI * tEff);
+    let p = lerpPose(rig.start, rig.end, ease);
+    if (formMistakeOn) p = apply2DMistakePose(p, activeFormRigKey, ease);
+
     const equipSvg = drawEquipmentSvg(rig.equip, p.wr, p.an);
 
-    // Subtle far-side limb silhouette offset for 3D athletic depth
+    // Subtle far-side limb silhouette offset for depth
     const off = [4, 2];
     const farHip = [p.hip[0] + off[0], p.hip[1] + off[1]];
     const farKn = [p.kn[0] + off[0], p.kn[1] + off[1]];
@@ -1240,9 +1739,15 @@
     const farEl = [p.el[0] + off[0], p.el[1] + 1];
     const farWr = [p.wr[0] + off[0], p.wr[1] + 1];
 
-    // Direction facing for shoe & head orientation
     const dir = p.head[0] <= p.hip[0] ? -1 : 1;
     const footDir = p.kn[0] >= p.hip[0] ? 1 : -1;
+
+    // Highlight working muscles on the 2D stickman
+    const torsoColor = getSegmentHighlightColor(activeFormExercise, ["chest", "lats", "mid_back", "lower_back", "abs", "obliques", "traps"], "#d1d5db");
+    const upperArmColor = getSegmentHighlightColor(activeFormExercise, ["biceps", "triceps", "front_delts", "side_delts", "rear_delts"], "#9ca3af");
+    const foreArmColor = getSegmentHighlightColor(activeFormExercise, ["forearms", "biceps", "triceps"], "#cbd5e1");
+    const thighColor = getSegmentHighlightColor(activeFormExercise, ["quads", "hamstrings", "glutes"], "#6b7280");
+    const calfColor = getSegmentHighlightColor(activeFormExercise, ["calves", "hamstrings"], "#9ca3af");
 
     let propSvg = "";
     if (rig.prop === "bar") {
@@ -1263,40 +1768,89 @@
       return `<path d="M${sx - 2 * footDir} ${sy - 2} L${sx + 8 * footDir} ${sy + 1.5} L${sx + 8 * footDir} ${sy + 3.5} L${sx - 3 * footDir} ${sy + 3.5} Z" fill="${fill}" rx="1"/>`;
     };
 
+    // Guides: trajectory curve, spine posture line, and live joint angle arcs
+    let guidesSvg = "";
+    if (formGuidesOn) {
+      const spineCol = formMistakeOn && (meta.mistakeType === "round_back" || meta.mistakeType === "hip_sag") ? "#ef4444" : "#22c55e";
+      guidesSvg += drawTrajectory2D(rig, activeFormRigKey);
+      guidesSvg += `<line x1="${p.hip[0].toFixed(1)}" y1="${p.hip[1].toFixed(1)}" x2="${p.neck[0].toFixed(1)}" y2="${p.neck[1].toFixed(1)}" stroke="${spineCol}" stroke-width="1.6" stroke-dasharray="2.5 2" opacity="0.8"/>`;
+
+      if (meta.angleMode === "elbow") {
+        guidesSvg += drawAngleArc2D(p.sh, p.el, p.wr);
+      } else if (meta.angleMode === "knee") {
+        guidesSvg += drawAngleArc2D(p.hip, p.kn, p.an);
+        guidesSvg += drawAngleArc2D(p.neck, p.hip, p.kn);
+      } else if (meta.angleMode === "hip") {
+        guidesSvg += drawAngleArc2D(p.neck, p.hip, p.kn);
+      } else if (meta.angleMode === "shoulder") {
+        guidesSvg += drawAngleArc2D(p.hip, p.sh, p.el);
+      }
+    }
+
     svg.innerHTML = `
-      ${equipSvg}
+      <g transform="translate(10, 8)">
+        ${equipSvg}
 
-      <!-- Far-side limbs (subtle depth) -->
-      ${taperedLimb(farHip, farKn, 5.2, 3.8, "#2a303c")}
-      ${taperedLimb(farKn, farAn, 3.6, 2.3, "#2a303c")}
-      ${taperedLimb(farSh, farEl, 3.8, 2.8, "#5a2024")}
-      ${taperedLimb(farEl, farWr, 2.8, 2.0, "#5a2024")}
+        <!-- Far-side limbs (depth) -->
+        ${taperedLimb(farHip, farKn, 5.2, 3.8, "#2a303c")}
+        ${taperedLimb(farKn, farAn, 3.6, 2.3, "#2a303c")}
+        ${taperedLimb(farSh, farEl, 3.8, 2.8, "#4b2528")}
+        ${taperedLimb(farEl, farWr, 2.8, 2.0, "#4b2528")}
 
-      <!-- Near-side Lower Body -->
-      ${taperedLimb(p.hip, p.kn, 6.2, 4.4, "#6b7280", "#111318")}
-      ${taperedLimb(p.kn, p.an, 4.3, 2.7, "#9ca3af", "#111318")}
-      ${shoe(p.an, "#e5e7eb")}
+        <!-- Near-side Lower Body -->
+        ${taperedLimb(p.hip, p.kn, 6.2, 4.4, thighColor, "#111318")}
+        ${taperedLimb(p.kn, p.an, 4.3, 2.7, calfColor, "#111318")}
+        ${shoe(p.an, "#e5e7eb")}
 
-      <!-- Neck & Structured Athletic Torso -->
-      ${taperedLimb(p.neck, p.head, 3.2, 2.8, "#d1d5db")}
-      ${taperedLimb(p.hip, p.neck, 5.4, 7.8, "#e5e7eb", "#111318")}
+        <!-- Neck & Structured Athletic Torso -->
+        ${taperedLimb(p.neck, p.head, 3.2, 2.8, "#d1d5db")}
+        ${taperedLimb(p.hip, p.neck, 5.4, 7.8, torsoColor, "#111318")}
 
-      <!-- Head with subtle brow orientation -->
-      <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.2"/>
-      <line x1="${p.head[0] + 2 * dir}" y1="${p.head[1] - 1.5}" x2="${p.head[0] + 7 * dir}" y2="${p.head[1] - 1.5}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
+        <!-- Head with brow orientation -->
+        <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.2"/>
+        <line x1="${p.head[0] + 2 * dir}" y1="${p.head[1] - 1.5}" x2="${p.head[0] + 7 * dir}" y2="${p.head[1] - 1.5}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
 
-      <!-- Near-side Working Arm (Highlighted) -->
-      ${taperedLimb(p.sh, p.el, 4.6, 3.3, "#dc2626", "#0b0c0e")}
-      ${taperedLimb(p.el, p.wr, 3.3, 2.3, "#ef4444", "#0b0c0e")}
-      <circle cx="${p.wr[0]}" cy="${p.wr[1]}" r="3" fill="#f3f4f6"/>
+        <!-- Near-side Working Arm -->
+        ${taperedLimb(p.sh, p.el, 4.6, 3.3, upperArmColor, "#0b0c0e")}
+        ${taperedLimb(p.el, p.wr, 3.3, 2.3, foreArmColor, "#0b0c0e")}
+        <circle cx="${p.wr[0]}" cy="${p.wr[1]}" r="3" fill="#f3f4f6"/>
 
-      <!-- Joint Markers -->
-      <circle cx="${p.sh[0]}" cy="${p.sh[1]}" r="2.2" fill="#fca5a5"/>
-      <circle cx="${p.el[0]}" cy="${p.el[1]}" r="1.8" fill="#fca5a5"/>
-      <circle cx="${p.hip[0]}" cy="${p.hip[1]}" r="2.2" fill="#d1d5db"/>
-      <circle cx="${p.kn[0]}" cy="${p.kn[1]}" r="1.8" fill="#e5e7eb"/>
+        <!-- Joint Markers -->
+        <circle cx="${p.sh[0]}" cy="${p.sh[1]}" r="2.2" fill="#fca5a5"/>
+        <circle cx="${p.el[0]}" cy="${p.el[1]}" r="1.8" fill="#fca5a5"/>
+        <circle cx="${p.hip[0]}" cy="${p.hip[1]}" r="2.2" fill="#d1d5db"/>
+        <circle cx="${p.kn[0]}" cy="${p.kn[1]}" r="1.8" fill="#e5e7eb"/>
 
-      ${propSvg}
+        ${propSvg}
+        ${guidesSvg}
+      </g>
+    `;
+  }
+
+  function renderFormGuideSection(ex, rigKey) {
+    const el = document.getElementById("form-guide-section");
+    if (!el) return;
+    const meta = getFormCoachMeta(rigKey, ex);
+    el.innerHTML = `
+      <span class="eyebrow" style="margin-bottom:0;">Full Form Guide</span>
+      <div class="form-guide-grid">
+        <div class="form-guide-box">
+          <strong>Setup &amp; Positioning</strong>
+          ${escapeHtml(meta.setup)}
+        </div>
+        <div class="form-guide-box">
+          <strong>Tempo &amp; Breathing</strong>
+          ${escapeHtml(meta.tempo)}
+        </div>
+        <div class="form-guide-box">
+          <strong>Target Joint Angles</strong>
+          ${escapeHtml(meta.targetAngles)}
+        </div>
+        <div class="form-guide-box" style="border-color:rgba(239,68,68,0.4);">
+          <strong style="color:#f87171;">What to Look Out For</strong>
+          ${escapeHtml(meta.lookOutFor)}
+        </div>
+      </div>
     `;
   }
 
@@ -1310,30 +1864,43 @@
       formAnimPhase = (formAnimPhase + dt * 0.45 * formAnimSpeed) % 1;
       const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
       const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
-      if (using3DForm && window.MuscleMap3D) {
-        window.MuscleMap3D.setPhase(t);
-      } else {
-        renderStickmanFrame(activeFormRig, t);
-      }
-    } else if (using3DForm && window.MuscleMap3D) {
-      window.MuscleMap3D.render();
+      renderStickmanFrame(activeFormRig, t);
     }
     formAnimRaf = requestAnimationFrame(stepFormAnimation);
   }
-  
+
   function openExerciseFormModal(exerciseId) {
     const ex = getExerciseById(exerciseId);
     if (!ex) return;
     const rigKey = ex.rig && FORM_RIGS[ex.rig] ? ex.rig : "curl";
     activeFormRig = FORM_RIGS[rigKey];
+    activeFormRigKey = rigKey;
+    activeFormExercise = ex;
     formAnimPlaying = true;
     formAnimPhase = 0;
     formLastTs = 0;
+    formMistakeOn = false;
 
     document.getElementById("form-modal-title").textContent = ex.name;
     document.getElementById("form-modal-equip").textContent = `${ex.equipment} · Proper Form & Positioning`;
     document.getElementById("btn-form-play").textContent = "Pause";
     document.getElementById("btn-form-speed").textContent = `${formAnimSpeed.toFixed(1)}x`;
+
+    const guidesBtn = document.getElementById("btn-form-guides");
+    if (guidesBtn) {
+      guidesBtn.classList.toggle("active", formGuidesOn);
+      guidesBtn.textContent = formGuidesOn ? "Guides: ON" : "Guides: OFF";
+    }
+    const mistakeBtn = document.getElementById("btn-form-mistake");
+    const mistakeNote = document.getElementById("form-mistake-note");
+    if (mistakeBtn) {
+      mistakeBtn.classList.remove("active");
+      mistakeBtn.textContent = "Mistake: OFF";
+    }
+    if (mistakeNote) {
+      mistakeNote.textContent = "";
+      mistakeNote.classList.add("hidden");
+    }
 
     document.getElementById("form-modal-muscles").innerHTML = `
       ${ex.primary.map((m) => `<span class="badge badge-primary">${MUSCLES[m]} (Primary)</span>`).join("")}
@@ -1359,50 +1926,11 @@
     document.getElementById("form-modal-cues").innerHTML = activeFormRig.cues
       .map((c) => `<li>${escapeHtml(c)}</li>`)
       .join("");
+    renderFormGuideSection(ex, rigKey);
 
     if (formAnimRaf) cancelAnimationFrame(formAnimRaf);
     openModal("modal-exercise-form");
-
-    const canvas3d = document.getElementById("form-3d-canvas");
-    const wrap3d = document.getElementById("form-3d-wrap");
-    const camBar = document.getElementById("form-cam-bar");
-    const svg2d = document.getElementById("form-stickman-svg");
-    using3DForm = Boolean(canvas3d && window.MuscleMap3D && window.MuscleMap3D.loadExercise(canvas3d, rigKey, ex.primary, ex.secondary, ex.id));
-
-    if (using3DForm) {
-      wrap3d?.classList.remove("hidden");
-      camBar?.classList.remove("hidden");
-      svg2d?.classList.add("hidden");
-      document.querySelectorAll("[data-cam-preset]").forEach((b) => {
-        b.classList.toggle("active", b.dataset.camPreset === "iso");
-      });
-      const guidesBtn = document.getElementById("btn-form-guides");
-      if (guidesBtn) {
-        const on = window.MuscleMap3D.getGuidesEnabled();
-        guidesBtn.classList.toggle("active", on);
-        guidesBtn.textContent = on ? "Guides: ON" : "Guides: OFF";
-      }
-      const mistakeBtn = document.getElementById("btn-form-mistake");
-      const mistakeNote = document.getElementById("form-mistake-note");
-      if (mistakeBtn) {
-        const mOn = window.MuscleMap3D.getMistakeEnabled ? window.MuscleMap3D.getMistakeEnabled() : false;
-        mistakeBtn.classList.toggle("active", mOn);
-        mistakeBtn.textContent = mOn ? "Mistake: ON" : "Mistake: OFF";
-      }
-      if (mistakeNote) {
-        mistakeNote.textContent = "";
-        mistakeNote.classList.add("hidden");
-      }
-      window.MuscleMap3D.resize();
-      window.MuscleMap3D.setPhase(0);
-    } else {
-      wrap3d?.classList.add("hidden");
-      camBar?.classList.add("hidden");
-      document.getElementById("form-mistake-note")?.classList.add("hidden");
-      svg2d?.classList.remove("hidden");
-      renderStickmanFrame(activeFormRig, 0);
-    }
-
+    renderStickmanFrame(activeFormRig, 0);
     formAnimRaf = requestAnimationFrame(stepFormAnimation);
   }
 
@@ -1412,7 +1940,7 @@
       formAnimRaf = null;
     }
     activeFormRig = null;
-    using3DForm = false;
+    activeFormExercise = null;
   }
 
   /* ---------------- SMART REST TIMER (TIMESTAMP-BASED + AUDIO/VIBRATE) ---------------- */
@@ -1762,7 +2290,7 @@
       jumpLabel: "Open Library",
       items: [
         ["Search & Muscle Filters", "Filter all exercises by muscle group or search by name and equipment."],
-        ["360° 3D Form Viewer", "Tap Form on any exercise to orbit 360° around a full .glb 3D model, switch camera presets (45°/Front/Side/Back), toggle alignment guides, joint-angle arcs, and Mistake: ON/OFF form comparisons."],
+        ["2D Form & Angle Guide", "Tap Form on any exercise to see the highlighted stickman, live joint-angle measurements (°), curved movement path, Mistake: ON/OFF comparison, and the full Setup/Tempo/Look-Out-For guide."],
         ["Tier 1–4 Weight Recommendations", "When your body weight is entered in Body Info, tap Tiers or Form to see Beginner–Maximum weights and 1-tap Use."],
         ["+ Custom Exercise", "Add your own exercises with primary (1.0x) and secondary (0.5x) muscle tags."]
       ]
@@ -1787,7 +2315,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v5.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v5.1)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -3730,6 +4258,11 @@
     });
 
     // Form animation modal controls
+    const redrawCurrentFormFrame = () => {
+      const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
+      const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
+      renderStickmanFrame(activeFormRig, t);
+    };
     document.getElementById("btn-form-play").addEventListener("click", () => {
       formAnimPlaying = !formAnimPlaying;
       document.getElementById("btn-form-play").textContent = formAnimPlaying ? "Pause" : "Play";
@@ -3738,49 +4271,36 @@
       formAnimPlaying = false;
       formAnimPhase = 0;
       document.getElementById("btn-form-play").textContent = "Play";
-      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.setPhase(0);
-      else renderStickmanFrame(activeFormRig, 0);
+      renderStickmanFrame(activeFormRig, 0);
     });
     document.getElementById("btn-form-peak").addEventListener("click", () => {
       formAnimPlaying = false;
       formAnimPhase = 0.5;
       document.getElementById("btn-form-play").textContent = "Play";
-      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.setPhase(1);
-      else renderStickmanFrame(activeFormRig, 1);
+      renderStickmanFrame(activeFormRig, 1);
     });
     document.getElementById("btn-form-speed").addEventListener("click", () => {
       formAnimSpeed = formAnimSpeed === 1.0 ? 0.5 : 1.0;
       document.getElementById("btn-form-speed").textContent = `${formAnimSpeed.toFixed(1)}x`;
     });
-    document.querySelectorAll("[data-cam-preset]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("[data-cam-preset]").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        if (using3DForm && window.MuscleMap3D) {
-          window.MuscleMap3D.setCameraPreset(btn.dataset.camPreset);
-        }
-      });
-    });
     document.getElementById("btn-form-guides")?.addEventListener("click", (e) => {
-      if (!using3DForm || !window.MuscleMap3D) return;
-      const on = window.MuscleMap3D.toggleGuides();
-      e.currentTarget.classList.toggle("active", on);
-      e.currentTarget.textContent = on ? "Guides: ON" : "Guides: OFF";
+      formGuidesOn = !formGuidesOn;
+      e.currentTarget.classList.toggle("active", formGuidesOn);
+      e.currentTarget.textContent = formGuidesOn ? "Guides: ON" : "Guides: OFF";
+      redrawCurrentFormFrame();
     });
     document.getElementById("btn-form-mistake")?.addEventListener("click", (e) => {
-      if (!using3DForm || !window.MuscleMap3D || !window.MuscleMap3D.toggleMistake) return;
-      const on = window.MuscleMap3D.toggleMistake();
-      e.currentTarget.classList.toggle("active", on);
-      e.currentTarget.textContent = on ? "Mistake: ON" : "Mistake: OFF";
+      formMistakeOn = !formMistakeOn;
+      e.currentTarget.classList.toggle("active", formMistakeOn);
+      e.currentTarget.textContent = formMistakeOn ? "Mistake: ON" : "Mistake: OFF";
       const noteEl = document.getElementById("form-mistake-note");
       if (noteEl) {
-        const note = on && window.MuscleMap3D.getMistakeNote ? window.MuscleMap3D.getMistakeNote() : "";
+        const meta = getFormCoachMeta(activeFormRigKey, activeFormExercise);
+        const note = formMistakeOn ? meta.mistakeNote : "";
         noteEl.textContent = note;
-        noteEl.classList.toggle("hidden", !on || !note);
+        noteEl.classList.toggle("hidden", !formMistakeOn || !note);
       }
-    });
-    window.addEventListener("resize", () => {
-      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.resize();
+      redrawCurrentFormFrame();
     });
 
     document.getElementById("profile-switcher-btn").addEventListener("click", () => {
