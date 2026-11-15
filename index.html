@@ -23,6 +23,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v3.1</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -472,6 +473,16 @@
               <canvas id="chart-strength-progress"></canvas>
             </div>
           </div>
+
+          <div class="card chart-card" style="grid-column: 1 / -1;">
+            <div class="card-head">
+              <h3>Weekly Volume Trend (Last 8 Weeks)</h3>
+              <span class="muted-note">Total kg lifted per week</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="chart-weekly-trend"></canvas>
+            </div>
+          </div>
         </div>
 
         <!-- Subtab: Calendar -->
@@ -887,6 +898,20 @@
         <div id="customize-dash-list" class="card-stack"></div>
         <button id="btn-save-dash-prefs" class="btn btn-primary btn-full" type="button">Done</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Version & Changelog -->
+  <div id="modal-changelog" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="changelog-modal-title">Release Notes</h3>
+          <span id="changelog-current-version" class="muted-note">v3.1</span>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-changelog">&times;</button>
+      </div>
+      <div id="changelog-list" class="card-stack"></div>
     </div>
   </div>
 

@@ -1,7 +1,63 @@
 (() => {
   "use strict";
 
+  const APP_VERSION = "v3.1";
   const STORAGE_KEY = "musclemap_v1_state";
+
+  const CHANGELOG = [
+    {
+      version: "v3.1",
+      date: "2026-11-15",
+      items: [
+        "PWA offline support (sw.js app shell + Chart.js caching) & unlocked landscape orientation in manifest.json",
+        "Set-type tags (Working / W Warmup / D Drop / F Failure) — warmup sets excluded from 1RM PRs and heatmap sets",
+        "Live PR! badge updates as you type, including first-time exercise PRs",
+        "Optional per-exercise notes and RPE logging, included in CSV export",
+        "Custom routine editing and up/down exercise reordering",
+        "Tier table highlights your Experience level and adds 1-tap Use buttons to pre-fill sets",
+        "Screen Wake Lock during active workouts & background rest-timer Notifications",
+        "8-Week Weekly Volume Trend chart in Stats",
+        "Cable handle and leg-press sled animations in Exercise Form viewer"
+      ]
+    },
+    {
+      version: "v3.0",
+      date: "2026-11-15",
+      items: [
+        "Swiss Grid / Minimal Fitness dark-charcoal + blood-red redesign with Iron Rail desktop navigation",
+        "Body-gated 4-tier exercise load recommendations (Beginner to Maximum)",
+        "Upgraded athletic stickman geometry with tapered limbs and torso",
+        "V2 bundle: session recovery, 1-tap set completion, smart rest timer, progressive overload, swaps, plate calculator, custom dashboard, calendar, recovery heatmap, and CSV export"
+      ]
+    }
+  ];
+
+  function registerServiceWorker() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+  }
+
+  function openChangelogModal() {
+    const verEl = document.getElementById("changelog-current-version");
+    const listEl = document.getElementById("changelog-list");
+    if (verEl) verEl.textContent = `Current build: ${APP_VERSION}`;
+    if (listEl) {
+      listEl.innerHTML = CHANGELOG.map(
+        (rel) => `
+        <div class="changelog-item">
+          <div class="card-head">
+            <strong>${escapeHtml(rel.version)}</strong>
+            <span class="muted-note">${escapeHtml(rel.date)}</span>
+          </div>
+          <ul class="changelog-ul">
+            ${rel.items.map((it) => `<li>${escapeHtml(it)}</li>`).join("")}
+          </ul>
+        </div>`
+      ).join("");
+    }
+    openModal("modal-changelog");
+  }
 
   const MUSCLES = {
     chest: "Chest",
@@ -679,7 +735,9 @@
   let calYear = new Date().getFullYear();
   let calMonth = new Date().getMonth();
   let calSelectedDateKey = null;
-  let charts = { volume: null, strength: null, weight: null };
+  let charts = { volume: null, strength: null, weight: null, weeklyTrend: null };
+  let wakeLockSentinel = null;
+  let editingRoutineId = null;
 
   // Form animation state
   let formAnimRaf = null;
@@ -934,28 +992,71 @@
     }
 
     const tiersMeta = [
-      { label: "Tier 1 - Beginner", mult: 0.55, reps: "12–15", sets: "2–3", failure: "No (RIR 3)", failCls: "tier-fail-no" },
-      { label: "Tier 2 - Moderate", mult: 0.75, reps: "8–12",  sets: "3",   failure: "No (RIR 1–2)", failCls: "tier-fail-no" },
-      { label: "Tier 3 - Heavy",    mult: 0.95, reps: "6–8",   sets: "3–4", failure: "Last set", failCls: "tier-fail-last" },
-      { label: "Tier 4 - Maximum",  mult: 1.12, reps: "3–5",   sets: "2–3", failure: "Yes", failCls: "tier-fail-yes" }
+      { label: "Tier 1 - Beginner", mult: 0.55, reps: "12–15", targetReps: 12, sets: "2–3", targetSets: 3, failure: "No (RIR 3)", failCls: "tier-fail-no" },
+      { label: "Tier 2 - Moderate", mult: 0.75, reps: "8–12",  targetReps: 10, sets: "3",   targetSets: 3, failure: "No (RIR 1–2)", failCls: "tier-fail-no" },
+      { label: "Tier 3 - Heavy",    mult: 0.95, reps: "6–8",   targetReps: 6,  sets: "3–4", targetSets: 4, failure: "Last set", failCls: "tier-fail-last" },
+      { label: "Tier 4 - Maximum",  mult: 1.12, reps: "3–5",   targetReps: 4,  sets: "2–3", targetSets: 3, failure: "Yes", failCls: "tier-fail-yes" }
     ];
+
+    const levelIndex = bp.level === "Beginner" ? 0 : bp.level === "Advanced" ? 2 : 1;
 
     const rows = tiersMeta.map((t, idx) => {
       let weightStr = "";
+      let numericWeight = 0;
       if (spec.bw) {
         if (idx === 0) weightStr = spec.weighted ? "BW (Assisted)" : "BW";
         else if (idx === 1) weightStr = "BW";
-        else if (idx === 2) weightStr = spec.weighted ? `BW + ${roundGymWeight(bw * 0.08 * mod, "Barbell")} kg` : "BW";
-        else weightStr = spec.weighted ? `BW + ${roundGymWeight(bw * 0.18 * mod, "Barbell")} kg` : "BW + 5 kg";
+        else if (idx === 2) {
+          numericWeight = spec.weighted ? roundGymWeight(bw * 0.08 * mod, "Barbell") : 0;
+          weightStr = spec.weighted ? `BW + ${numericWeight} kg` : "BW";
+        } else {
+          numericWeight = spec.weighted ? roundGymWeight(bw * 0.18 * mod, "Barbell") : 5;
+          weightStr = spec.weighted ? `BW + ${numericWeight} kg` : "BW + 5 kg";
+        }
       } else {
         const raw = bw * spec.r * t.mult * mod;
-        const rounded = roundGymWeight(raw, ex.equipment);
-        weightStr = spec.perHand ? `${rounded} kg × 2` : `${rounded} kg`;
+        numericWeight = roundGymWeight(raw, ex.equipment);
+        weightStr = spec.perHand ? `${numericWeight} kg × 2` : `${numericWeight} kg`;
       }
-      return { ...t, weight: weightStr };
+      return { ...t, weight: weightStr, numericWeight, isUserLevel: idx === levelIndex };
     });
 
-    return { bw, goal: bp.goal || "Hypertrophy", rows };
+    return { bw, goal: bp.goal || "Hypertrophy", level: bp.level || "Intermediate", rows };
+  }
+
+  function applyTierToWorkout(exId, tierIdx) {
+    const ex = getExerciseById(exId);
+    const data = getExerciseWeightTiers(ex);
+    if (!ex || !data || !data.rows[tierIdx]) return;
+    const tier = data.rows[tierIdx];
+
+    let active = getActiveWorkout();
+    if (!active) {
+      active = {
+        id: uid("wk"),
+        title: `${ex.name} Session`,
+        startedAt: new Date().toISOString(),
+        exercises: []
+      };
+      setActiveWorkout(active);
+    }
+
+    const sets = Array.from({ length: tier.targetSets }, (_, i) => ({
+      weight: tier.numericWeight > 0 ? String(tier.numericWeight) : "",
+      reps: String(tier.targetReps),
+      type: tierIdx === 3 || (tierIdx === 2 && i === tier.targetSets - 1) ? "F" : "",
+      completed: false
+    }));
+
+    const existing = active.exercises.find((item) => item.exerciseId === ex.id);
+    if (existing) {
+      existing.sets = sets;
+    } else {
+      active.exercises.push({ exerciseId: ex.id, sets });
+    }
+    saveState();
+    closeModal("modal-exercise-form");
+    switchView("workout");
   }
 
   function renderExerciseTierTableHtml(ex) {
@@ -964,7 +1065,7 @@
     return `
       <div class="tier-head">
         <span class="eyebrow" style="margin-bottom:0;">Recommended Load Tiers</span>
-        <span class="muted-note">Based on ${data.bw} kg · ${escapeHtml(data.goal)}</span>
+        <span class="muted-note">Based on ${data.bw} kg · ${escapeHtml(data.goal)} · ${escapeHtml(data.level)}</span>
       </div>
       <div class="tier-table-scroll">
         <table class="tier-table">
@@ -975,18 +1076,20 @@
               <th>Reps</th>
               <th>Sets</th>
               <th>Failure?</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             ${data.rows
               .map(
-                (r) => `
-              <tr>
+                (r, idx) => `
+              <tr class="${r.isUserLevel ? "tier-active-row" : ""}">
                 <td>${r.label}</td>
                 <td><strong>${escapeHtml(r.weight)}</strong></td>
                 <td>${r.reps}</td>
                 <td>${r.sets}</td>
                 <td class="${r.failCls}">${r.failure}</td>
+                <td><button class="btn btn-ghost btn-sm" type="button" data-apply-tier="${ex.id}:${idx}">Use</button></td>
               </tr>`
               )
               .join("")}
@@ -1009,7 +1112,7 @@
     return out;
   }
 
-  function drawEquipmentSvg(equip, wr) {
+  function drawEquipmentSvg(equip, wr, an) {
     let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#262a34" stroke-width="2" stroke-linecap="round"/>`;
     if (equip === "bench_flat") {
       html += `
@@ -1044,6 +1147,7 @@
       html += `
         <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>
         <line x1="70" y1="14" x2="156" y2="14" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="${wr[0] - 12}" y1="${wr[1]}" x2="${wr[0] + 12}" y2="${wr[1]}" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
         <rect x="86" y="108" width="46" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
         <line x1="104" y1="117" x2="104" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "cable_high" || equip === "cable_mid") {
@@ -1051,12 +1155,16 @@
       html += `
         <line x1="36" y1="20" x2="36" y2="152" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
         <circle cx="36" cy="${py}" r="5" fill="#191c22" stroke="#dc2626" stroke-width="2"/>
-        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>`;
+        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>
+        <rect x="${wr[0] - 3}" y="${wr[1] - 4}" width="6" height="8" rx="1.5" fill="#f59e0b"/>`;
     } else if (equip === "leg_press") {
+      const sx = an ? an[0] : 152;
+      const sy = an ? an[1] : 78;
       html += `
         <line x1="50" y1="74" x2="88" y2="122" stroke="#3f4654" stroke-width="9" stroke-linecap="round"/>
         <line x1="88" y1="124" x2="116" y2="124" stroke="#3f4654" stroke-width="8" stroke-linecap="round"/>
-        <line x1="138" y1="102" x2="174" y2="68" stroke="#2a303c" stroke-width="3.5"/>`;
+        <line x1="124" y1="112" x2="178" y2="62" stroke="#2a303c" stroke-width="3"/>
+        <line x1="${sx - 4}" y1="${sy + 12}" x2="${sx + 10}" y2="${sy - 14}" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>`;
     }
     return html;
   }
@@ -1084,7 +1192,7 @@
 
     const ease = 0.5 - 0.5 * Math.cos(Math.PI * t);
     const p = lerpPose(rig.start, rig.end, ease);
-    const equipSvg = drawEquipmentSvg(rig.equip, p.wr);
+    const equipSvg = drawEquipmentSvg(rig.equip, p.wr, p.an);
 
     // Subtle far-side limb silhouette offset for 3D athletic depth
     const off = [4, 2];
@@ -1193,6 +1301,12 @@
     const tierHtml = renderExerciseTierTableHtml(ex);
     if (tierHtml) {
       tiersEl.innerHTML = tierHtml;
+      tiersEl.querySelectorAll("[data-apply-tier]").forEach((tBtn) => {
+        tBtn.addEventListener("click", () => {
+          const [id, idx] = tBtn.dataset.applyTier.split(":");
+          applyTierToWorkout(id, Number(idx));
+        });
+      });
       tiersEl.classList.remove("hidden");
     } else {
       tiersEl.innerHTML = "";
@@ -1273,6 +1387,30 @@
     }
   }
 
+  async function requestWakeLock() {
+    try {
+      if ("wakeLock" in navigator && !wakeLockSentinel) {
+        wakeLockSentinel = await navigator.wakeLock.request("screen");
+        wakeLockSentinel.addEventListener("release", () => {
+          wakeLockSentinel = null;
+        });
+      }
+    } catch {
+      // Ignore unsupported or battery-saver wakeLock rejections
+    }
+  }
+
+  function releaseWakeLock() {
+    try {
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release();
+        wakeLockSentinel = null;
+      }
+    } catch {
+      wakeLockSentinel = null;
+    }
+  }
+
   function startRestTimer(seconds) {
     stopRestTimer(false);
     const settings = getProfileSettings();
@@ -1281,6 +1419,10 @@
     const active = getActiveWorkout();
     if (active) active.restEndsAt = restEndsAt;
     saveState();
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
 
     updateRestDisplay();
     restInterval = setInterval(() => {
@@ -1292,6 +1434,13 @@
           disp.style.color = "var(--success)";
         }
         playRestChime();
+        if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("MUSCLEMAP — Rest Complete", { body: "Time for your next set." });
+          } catch {
+            // Ignore notification errors
+          }
+        }
       } else {
         updateRestDisplay();
       }
@@ -1339,6 +1488,7 @@
       const match = w.exercises.find((e) => e.exerciseId === exerciseId);
       if (!match) continue;
       for (const s of match.sets) {
+        if (s.type === "W") continue;
         const weight = Number(s.weight) || 0;
         const reps = Number(s.reps) || 0;
         if (weight > 0 && reps > 0) {
@@ -1355,7 +1505,7 @@
     for (const w of workouts) {
       const match = w.exercises.find((e) => e.exerciseId === exerciseId);
       if (!match || !match.sets.length) continue;
-      const validSets = match.sets.filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0);
+      const validSets = match.sets.filter((s) => s.type !== "W" && (Number(s.reps) > 0 || Number(s.weight) > 0));
       if (!validSets.length) continue;
 
       const topSet = validSets.reduce((best, s) => {
@@ -1410,7 +1560,7 @@
         const ex = getExerciseById(item.exerciseId);
         if (!ex) continue;
 
-        const workingSets = item.sets.filter((s) => s.completed !== false && (Number(s.reps) > 0 || Number(s.weight) > 0));
+        const workingSets = item.sets.filter((s) => s.type !== "W" && s.completed !== false && (Number(s.reps) > 0 || Number(s.weight) > 0));
         if (!workingSets.length) continue;
 
         const setCount = workingSets.length;
@@ -2244,6 +2394,7 @@
     }
 
     if (!active) {
+      releaseWakeLock();
       stopRestTimer(false);
       idleEl.classList.remove("hidden");
       activeEl.classList.add("hidden");
@@ -2252,6 +2403,7 @@
       return;
     }
 
+    requestWakeLock();
     idleEl.classList.add("hidden");
     activeEl.classList.remove("hidden");
     document.getElementById("workout-title-input").value = active.title;
@@ -2272,6 +2424,15 @@
       return;
     }
 
+    const computeIsPR = (s, histBest1RM) => {
+      if (s.type === "W") return false;
+      const wNum = Number(s.weight) || 0;
+      const rNum = Number(s.reps) || 0;
+      if (wNum <= 0 || rNum <= 0) return false;
+      const set1RM = wNum * (1 + rNum / 30);
+      return histBest1RM === 0 || set1RM > histBest1RM;
+    };
+
     container.innerHTML = active.exercises
       .map((item, exIdx) => {
         const ex = getExerciseById(item.exerciseId);
@@ -2282,13 +2443,16 @@
 
         const setsHtml = item.sets
           .map((s, setIdx) => {
-            const wNum = Number(s.weight) || 0;
-            const rNum = Number(s.reps) || 0;
-            const set1RM = wNum > 0 && rNum > 0 ? wNum * (1 + rNum / 30) : 0;
-            const isPR = histBest1RM > 0 && set1RM > histBest1RM;
+            const isPR = computeIsPR(s, histBest1RM);
+            const setType = s.type || "";
+            const typeLabel = setType || String(setIdx + 1);
+            const typeTitle = setType === "W" ? "Warmup (excluded from stats)" : setType === "D" ? "Drop set" : setType === "F" ? "Failure set" : "Working set (tap to cycle W/D/F)";
             return `
-              <div class="set-row">
-                <span class="set-num">${setIdx + 1}${isPR ? '<span class="pr-badge">PR!</span>' : ""}</span>
+              <div class="set-row" data-set-row="${exIdx}:${setIdx}">
+                <span class="set-num">
+                  <button class="set-type-btn ${setType ? `type-${setType}` : ""}" type="button" title="${typeTitle}" data-cycle-type="${exIdx}:${setIdx}">${typeLabel}</button>
+                  <span class="pr-badge ${isPR ? "" : "hidden"}" data-pr-badge="${exIdx}:${setIdx}">PR!</span>
+                </span>
                 <input class="set-input" type="number" step="0.5" min="0" placeholder="kg" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
                 <input class="set-input" type="number" min="0" placeholder="reps" value="${s.reps}" data-ex="${exIdx}" data-set="${setIdx}" data-field="reps" />
                 <button class="set-check ${s.completed ? "done" : ""}" type="button" data-toggle-set="${exIdx}:${setIdx}">✓</button>
@@ -2327,6 +2491,10 @@
               <span>Set</span><span>Weight</span><span>Reps</span><span>Done</span><span></span>
             </div>
             ${setsHtml}
+            <div class="ex-meta-row">
+              <input class="ex-note-input" type="text" placeholder="Exercise note (e.g., pause reps, seat pin 4)..." value="${escapeHtml(item.note || "")}" data-ex-note="${exIdx}" />
+              <input class="ex-rpe-input" type="number" step="0.5" min="5" max="10" placeholder="RPE" value="${item.rpe ?? ""}" data-ex-rpe="${exIdx}" />
+            </div>
             <button class="btn btn-secondary btn-sm" type="button" data-add-set="${exIdx}">+ Add Set</button>
           </div>`;
       })
@@ -2356,7 +2524,7 @@
         const overload = getOverloadSuggestion(exItem.exerciseId);
         if (!overload) return;
         exItem.sets.forEach((s) => {
-          if (!s.completed) {
+          if (!s.completed && s.type !== "W") {
             if (overload.weight > 0) s.weight = String(overload.weight);
             s.reps = String(overload.reps);
           }
@@ -2366,11 +2534,53 @@
       });
     });
 
+    container.querySelectorAll("[data-cycle-type]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [exIdx, setIdx] = btn.dataset.cycleType.split(":").map(Number);
+        const setObj = active.exercises[exIdx]?.sets[setIdx];
+        if (!setObj) return;
+        const order = ["", "W", "D", "F"];
+        const next = order[(order.indexOf(setObj.type || "") + 1) % order.length];
+        setObj.type = next;
+        saveState();
+        renderWorkoutView();
+      });
+    });
+
+    container.querySelectorAll("[data-ex-note]").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const exIdx = Number(inp.dataset.exNote);
+        if (active.exercises[exIdx]) {
+          active.exercises[exIdx].note = inp.value;
+          saveState();
+        }
+      });
+    });
+
+    container.querySelectorAll("[data-ex-rpe]").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const exIdx = Number(inp.dataset.exRpe);
+        if (active.exercises[exIdx]) {
+          active.exercises[exIdx].rpe = inp.value;
+          saveState();
+        }
+      });
+    });
+
     container.querySelectorAll(".set-input").forEach((inp) => {
       inp.addEventListener("input", () => {
         const { ex, set, field } = inp.dataset;
-        active.exercises[ex].sets[set][field] = inp.value;
+        const exIdx = Number(ex);
+        const setIdx = Number(set);
+        const exItem = active.exercises[exIdx];
+        const setObj = exItem.sets[setIdx];
+        setObj[field] = inp.value;
         saveState();
+        const badge = container.querySelector(`[data-pr-badge="${exIdx}:${setIdx}"]`);
+        if (badge) {
+          const histBest = getHistoricalBest1RM(exItem.exerciseId);
+          badge.classList.toggle("hidden", !computeIsPR(setObj, histBest));
+        }
       });
     });
 
@@ -2420,6 +2630,7 @@
         active.exercises[exIdx].sets.push({
           weight: prev ? prev.weight : "",
           reps: prev ? prev.reps : "",
+          type: "",
           completed: false
         });
         saveState();
@@ -2462,6 +2673,51 @@
     });
   }
 
+  function openRoutineModal(routineId = null) {
+    editingRoutineId = routineId;
+    const routine = routineId ? getProfileRoutines().find((r) => r.id === routineId) : null;
+    document.getElementById("routine-modal-title").textContent = routine ? "Edit Routine" : "Create Routine";
+    document.getElementById("routine-name-input").value = routine ? routine.name : "";
+
+    const selectedIds = routine ? [...routine.exerciseIds] : [];
+    const selectedSet = new Set(selectedIds);
+    const orderedExercises = [
+      ...selectedIds.map((id) => getExerciseById(id)).filter(Boolean),
+      ...state.exercises.filter((ex) => !selectedSet.has(ex.id))
+    ];
+
+    const listEl = document.getElementById("routine-exercise-checklist");
+    listEl.innerHTML = orderedExercises
+      .map(
+        (ex) => `
+        <div class="routine-order-row" data-routine-row="${ex.id}">
+          <label>
+            <input type="checkbox" name="routineEx" value="${ex.id}" ${selectedSet.has(ex.id) ? "checked" : ""} />
+            <span>${escapeHtml(ex.name)}</span>
+          </label>
+          <div class="btn-row" style="gap:4px;">
+            <button class="btn btn-ghost btn-sm" type="button" data-move-ex="up" title="Move up">&uarr;</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-move-ex="down" title="Move down">&darr;</button>
+          </div>
+        </div>`
+      )
+      .join("");
+
+    listEl.querySelectorAll("[data-move-ex]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const row = btn.closest("[data-routine-row]");
+        if (!row) return;
+        if (btn.dataset.moveEx === "up" && row.previousElementSibling) {
+          listEl.insertBefore(row, row.previousElementSibling);
+        } else if (btn.dataset.moveEx === "down" && row.nextElementSibling) {
+          listEl.insertBefore(row.nextElementSibling, row);
+        }
+      });
+    });
+
+    openModal("modal-routine");
+  }
+
   function renderRoutinesList() {
     const list = document.getElementById("routines-list");
     const routines = getProfileRoutines();
@@ -2482,6 +2738,7 @@
               <strong>${escapeHtml(r.name)}</strong>
               <div class="btn-row">
                 <button class="btn btn-primary btn-sm" type="button" data-run-routine="${r.id}">Start</button>
+                <button class="btn btn-secondary btn-sm" type="button" data-edit-routine="${r.id}">Edit</button>
                 <button class="btn btn-danger-ghost btn-sm" type="button" data-del-routine="${r.id}">&times;</button>
               </div>
             </div>
@@ -2492,6 +2749,9 @@
 
     list.querySelectorAll("[data-run-routine]").forEach((b) => {
       b.addEventListener("click", () => startWorkoutFromRoutine(b.dataset.runRoutine));
+    });
+    list.querySelectorAll("[data-edit-routine]").forEach((b) => {
+      b.addEventListener("click", () => openRoutineModal(b.dataset.editRoutine));
     });
     list.querySelectorAll("[data-del-routine]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -2509,11 +2769,14 @@
     const cleanedExercises = active.exercises
       .map((item) => ({
         exerciseId: item.exerciseId,
+        note: (item.note || "").trim(),
+        rpe: item.rpe ? Number(item.rpe) : null,
         sets: item.sets
           .filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0)
           .map((s) => ({
             weight: Number(s.weight) || 0,
             reps: Number(s.reps) || 0,
+            type: s.type || "",
             completed: true
           }))
       }))
@@ -2533,6 +2796,7 @@
       exercises: cleanedExercises
     });
 
+    releaseWakeLock();
     stopRestTimer();
     setActiveWorkout(null);
     switchView("anatomy");
@@ -2656,6 +2920,12 @@
           const isHidden = box.classList.contains("hidden");
           if (isHidden) {
             box.innerHTML = renderExerciseTierTableHtml(ex);
+            box.querySelectorAll("[data-apply-tier]").forEach((tBtn) => {
+              tBtn.addEventListener("click", () => {
+                const [id, idx] = tBtn.dataset.applyTier.split(":");
+                applyTierToWorkout(id, Number(idx));
+              });
+            });
             box.classList.remove("hidden");
             btn.textContent = "Hide Tiers";
           } else {
@@ -2690,9 +2960,78 @@
     renderVolumeChart();
     populateStrengthSelect();
     renderStrengthChart();
+    renderWeeklyTrendChart();
     renderCalendar();
     renderWorkoutHistory();
     renderBodyStats();
+  }
+
+  function renderWeeklyTrendChart() {
+    if (typeof Chart === "undefined") return;
+    const canvas = document.getElementById("chart-weekly-trend");
+    if (!canvas) return;
+
+    const getMonday = (d) => {
+      const copy = new Date(d);
+      const day = copy.getDay();
+      const diff = copy.getDate() - day + (day === 0 ? -6 : 1);
+      copy.setDate(diff);
+      copy.setHours(0, 0, 0, 0);
+      return copy;
+    };
+
+    const thisMonday = getMonday(new Date());
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const start = new Date(thisMonday.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      weeks.push({
+        startMs: start.getTime(),
+        endMs: start.getTime() + 7 * 24 * 60 * 60 * 1000,
+        label: start.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        volume: 0
+      });
+    }
+
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    workouts.forEach((w) => {
+      const t = new Date(w.endedAt).getTime();
+      const bucket = weeks.find((wk) => t >= wk.startMs && t < wk.endMs);
+      if (!bucket) return;
+      w.exercises.forEach((ex) => {
+        ex.sets.forEach((s) => {
+          if (s.type === "W") return;
+          bucket.volume += (Number(s.weight) || 0) * (Number(s.reps) || 0);
+        });
+      });
+    });
+
+    if (charts.weeklyTrend) charts.weeklyTrend.destroy();
+    const ctx = canvas.getContext("2d");
+    charts.weeklyTrend = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: weeks.map((w) => w.label),
+        datasets: [
+          {
+            label: "Weekly Volume (kg)",
+            data: weeks.map((w) => Math.round(w.volume)),
+            borderColor: "#dc2626",
+            backgroundColor: "rgba(220, 38, 38, 0.14)",
+            fill: true,
+            tension: 0.25
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
+          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" }, beginAtZero: true }
+        }
+      }
+    });
   }
 
   function toLocalDateKey(isoOrDate) {
@@ -3088,7 +3427,7 @@
     }
 
     const rows = [
-      ["Date", "Workout", "Exercise", "Equipment", "Set", "Weight_kg", "Reps", "Volume_kg", "Est_1RM_kg"].join(",")
+      ["Date", "Workout", "Exercise", "Equipment", "Set", "Set_Type", "Weight_kg", "Reps", "RPE", "Volume_kg", "Est_1RM_kg", "Notes"].join(",")
     ];
     workouts.forEach((w) => {
       const dateStr = new Date(w.endedAt).toISOString();
@@ -3096,11 +3435,13 @@
         const ex = getExerciseById(item.exerciseId);
         const exName = ex ? ex.name : item.exerciseId;
         const equip = ex ? ex.equipment : "";
+        const exNote = item.note || "";
+        const exRpe = item.rpe || "";
         item.sets.forEach((s, idx) => {
           const wt = Number(s.weight) || 0;
           const rp = Number(s.reps) || 0;
           const vol = wt * rp;
-          const e1rm = wt > 0 && rp > 0 ? (wt * (1 + rp / 30)).toFixed(1) : "0";
+          const e1rm = s.type !== "W" && wt > 0 && rp > 0 ? (wt * (1 + rp / 30)).toFixed(1) : "0";
           rows.push(
             [
               csvEscape(dateStr),
@@ -3108,10 +3449,13 @@
               csvEscape(exName),
               csvEscape(equip),
               idx + 1,
+              csvEscape(s.type || "Working"),
               wt,
               rp,
+              csvEscape(exRpe),
               vol,
-              e1rm
+              e1rm,
+              csvEscape(exNote)
             ].join(",")
           );
         });
@@ -3351,19 +3695,9 @@
       renderLibrary();
     });
 
-    document.getElementById("btn-new-routine").addEventListener("click", () => {
-      document.getElementById("routine-name-input").value = "";
-      document.getElementById("routine-exercise-checklist").innerHTML = state.exercises
-        .map(
-          (ex) => `
-          <label class="chip-toggle" style="justify-content:space-between;border-radius:10px;padding:8px 10px;">
-            <span>${escapeHtml(ex.name)}</span>
-            <input type="checkbox" name="routineEx" value="${ex.id}" />
-          </label>`
-        )
-        .join("");
-      openModal("modal-routine");
-    });
+    document.getElementById("btn-version-badge")?.addEventListener("click", openChangelogModal);
+
+    document.getElementById("btn-new-routine").addEventListener("click", () => openRoutineModal(null));
     document.getElementById("form-routine").addEventListener("submit", (e) => {
       e.preventDefault();
       const name = document.getElementById("routine-name-input").value.trim();
@@ -3373,7 +3707,15 @@
         return;
       }
       if (!state.routines[state.activeProfileId]) state.routines[state.activeProfileId] = [];
-      state.routines[state.activeProfileId].push({ id: uid("rt"), name, exerciseIds });
+      if (editingRoutineId) {
+        const idx = state.routines[state.activeProfileId].findIndex((r) => r.id === editingRoutineId);
+        if (idx !== -1) {
+          state.routines[state.activeProfileId][idx] = { id: editingRoutineId, name, exerciseIds };
+        }
+      } else {
+        state.routines[state.activeProfileId].push({ id: uid("rt"), name, exerciseIds });
+      }
+      editingRoutineId = null;
       saveState();
       closeModal("modal-routine");
       renderRoutinesList();
@@ -3446,6 +3788,7 @@
   }
 
   /* ---------------- INIT ---------------- */
+  registerServiceWorker();
   renderHeader();
   bindEvents();
   switchView("dashboard");
