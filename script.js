@@ -1,10 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v3.2";
+  const APP_VERSION = "v4.0";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v4.0",
+      date: "2026-11-15",
+      items: [
+        "Upgraded Form Viewer to an interactive 360° 3D anatomical model (Three.js + OrbitControls) for all 60 exercises",
+        "Added drag-to-orbit, pinch/scroll zoom, 45° / Front / Side / Back camera presets, and toggleable 3D alignment guides",
+        "Automatic fallback to the 2D stickman viewer if WebGL is unavailable"
+      ]
+    },
     {
       version: "v3.2",
       date: "2026-11-15",
@@ -754,6 +763,7 @@
   let formAnimPhase = 0;
   let formLastTs = 0;
   let activeFormRig = null;
+  let using3DForm = false;
 
   function mergeById(existing, incoming) {
     const map = new Map(existing.map((item) => [item.id, item]));
@@ -1281,7 +1291,13 @@
       formAnimPhase = (formAnimPhase + dt * 0.45 * formAnimSpeed) % 1;
       const raw = formAnimPhase < 0.5 ? formAnimPhase * 2 : (1 - formAnimPhase) * 2;
       const t = Math.max(0, Math.min(1, (raw - 0.08) / 0.84));
-      renderStickmanFrame(activeFormRig, t);
+      if (using3DForm && window.MuscleMap3D) {
+        window.MuscleMap3D.setPhase(t);
+      } else {
+        renderStickmanFrame(activeFormRig, t);
+      }
+    } else if (using3DForm && window.MuscleMap3D) {
+      window.MuscleMap3D.render();
     }
     formAnimRaf = requestAnimationFrame(stepFormAnimation);
   }
@@ -1327,6 +1343,35 @@
 
     if (formAnimRaf) cancelAnimationFrame(formAnimRaf);
     openModal("modal-exercise-form");
+
+    const canvas3d = document.getElementById("form-3d-canvas");
+    const wrap3d = document.getElementById("form-3d-wrap");
+    const camBar = document.getElementById("form-cam-bar");
+    const svg2d = document.getElementById("form-stickman-svg");
+    using3DForm = Boolean(canvas3d && window.MuscleMap3D && window.MuscleMap3D.loadExercise(canvas3d, rigKey, ex.primary));
+
+    if (using3DForm) {
+      wrap3d?.classList.remove("hidden");
+      camBar?.classList.remove("hidden");
+      svg2d?.classList.add("hidden");
+      document.querySelectorAll("[data-cam-preset]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.camPreset === "iso");
+      });
+      const guidesBtn = document.getElementById("btn-form-guides");
+      if (guidesBtn) {
+        const on = window.MuscleMap3D.getGuidesEnabled();
+        guidesBtn.classList.toggle("active", on);
+        guidesBtn.textContent = on ? "Guides: ON" : "Guides: OFF";
+      }
+      window.MuscleMap3D.resize();
+      window.MuscleMap3D.setPhase(0);
+    } else {
+      wrap3d?.classList.add("hidden");
+      camBar?.classList.add("hidden");
+      svg2d?.classList.remove("hidden");
+      renderStickmanFrame(activeFormRig, 0);
+    }
+
     formAnimRaf = requestAnimationFrame(stepFormAnimation);
   }
 
@@ -1336,6 +1381,7 @@
       formAnimRaf = null;
     }
     activeFormRig = null;
+    using3DForm = false;
   }
 
   /* ---------------- SMART REST TIMER (TIMESTAMP-BASED + AUDIO/VIBRATE) ---------------- */
@@ -1685,7 +1731,7 @@
       jumpLabel: "Open Library",
       items: [
         ["Search & Muscle Filters", "Filter all exercises by muscle group or search by name and equipment."],
-        ["Animated Form Viewer", "Tap Form on any exercise to watch the stickman animation (Play/Pause/0.5x) and read form cues."],
+        ["360° 3D Form Viewer", "Tap Form on any exercise to orbit 360° around a 3D model, switch camera presets (45°/Front/Side/Back), toggle alignment guides, and read form cues."],
         ["Tier 1–4 Weight Recommendations", "When your body weight is entered in Body Info, tap Tiers or Form to see Beginner–Maximum weights and 1-tap Use."],
         ["+ Custom Exercise", "Add your own exercises with primary (1.0x) and secondary (0.5x) muscle tags."]
       ]
@@ -1710,7 +1756,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v3.2)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v4.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -3657,21 +3703,41 @@
       formAnimPlaying = !formAnimPlaying;
       document.getElementById("btn-form-play").textContent = formAnimPlaying ? "Pause" : "Play";
     });
-   document.getElementById("btn-form-start").addEventListener("click", () => {
+    document.getElementById("btn-form-start").addEventListener("click", () => {
       formAnimPlaying = false;
       formAnimPhase = 0;
       document.getElementById("btn-form-play").textContent = "Play";
-      renderStickmanFrame(activeFormRig, 0);
+      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.setPhase(0);
+      else renderStickmanFrame(activeFormRig, 0);
     });
-     document.getElementById("btn-form-peak").addEventListener("click", () => {
+    document.getElementById("btn-form-peak").addEventListener("click", () => {
       formAnimPlaying = false;
       formAnimPhase = 0.5;
       document.getElementById("btn-form-play").textContent = "Play";
-      renderStickmanFrame(activeFormRig, 1);
+      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.setPhase(1);
+      else renderStickmanFrame(activeFormRig, 1);
     });
     document.getElementById("btn-form-speed").addEventListener("click", () => {
       formAnimSpeed = formAnimSpeed === 1.0 ? 0.5 : 1.0;
       document.getElementById("btn-form-speed").textContent = `${formAnimSpeed.toFixed(1)}x`;
+    });
+    document.querySelectorAll("[data-cam-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("[data-cam-preset]").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        if (using3DForm && window.MuscleMap3D) {
+          window.MuscleMap3D.setCameraPreset(btn.dataset.camPreset);
+        }
+      });
+    });
+    document.getElementById("btn-form-guides")?.addEventListener("click", (e) => {
+      if (!using3DForm || !window.MuscleMap3D) return;
+      const on = window.MuscleMap3D.toggleGuides();
+      e.currentTarget.classList.toggle("active", on);
+      e.currentTarget.textContent = on ? "Guides: ON" : "Guides: OFF";
+    });
+    window.addEventListener("resize", () => {
+      if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.resize();
     });
 
     document.getElementById("profile-switcher-btn").addEventListener("click", () => {

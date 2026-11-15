@@ -1726,3 +1726,47 @@ button.card,
   color: var(--text);
 }
 
+/* ---------------- V4.0 3D FORM VIEWER ---------------- */
+.form-3d-wrap {
+  width: 100%;
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#form-3d-canvas {
+  width: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#form-3d-canvas:active {
+  cursor: grabbing;
+}
+
+.form-3d-hint {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(11, 12, 14, 0.78);
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.form-cam-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+}
+
+.form-cam-bar .rest-btn.active {
+  border-color: var(--primary);
+  color: #fca5a5;
+}
+

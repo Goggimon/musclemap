@@ -10,6 +10,8 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <div id="app">
@@ -23,7 +25,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v3.2</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v4.0</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -863,7 +865,18 @@
         <button class="close-modal btn-icon" type="button" data-close="modal-exercise-form">&times;</button>
       </div>
       <div class="form-stage">
-        <svg id="form-stickman-svg" viewBox="0 0 220 165" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated exercise form stickman"></svg>
+        <div id="form-3d-wrap" class="form-3d-wrap">
+          <canvas id="form-3d-canvas"></canvas>
+          <span class="form-3d-hint">Drag 360° &middot; Pinch/scroll zoom</span>
+        </div>
+        <svg id="form-stickman-svg" class="hidden" viewBox="0 0 220 165" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated exercise form stickman"></svg>
+        <div id="form-cam-bar" class="form-cam-bar">
+          <button class="rest-btn active" type="button" data-cam-preset="iso">45&deg;</button>
+          <button class="rest-btn" type="button" data-cam-preset="front">Front</button>
+          <button class="rest-btn" type="button" data-cam-preset="side">Side</button>
+          <button class="rest-btn" type="button" data-cam-preset="back">Back</button>
+          <button id="btn-form-guides" class="rest-btn active" type="button">Guides: ON</button>
+        </div>
         <div class="form-controls">
           <button id="btn-form-play" class="btn btn-primary btn-sm" type="button">Pause</button>
           <button id="btn-form-start" class="btn btn-secondary btn-sm" type="button">Start Pose</button>
@@ -949,6 +962,7 @@
     </div>
   </div>
 
+  <script src="form3d.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
