@@ -27,7 +27,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.3</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.4</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -1044,6 +1044,25 @@
         <p class="muted-note">Choose which widgets appear on your Training Home Overview.</p>
         <div id="customize-dash-list" class="card-stack"></div>
         <button id="btn-save-dash-prefs" class="btn btn-primary btn-full" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Post-Workout Summary Card -->
+  <div id="modal-workout-summary" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow" style="margin-bottom:2px;">SYSTEM / 01 &middot; SESSION COMPLETE</span>
+          <h3 id="summary-modal-title">Workout Summary</h3>
+          <span id="summary-modal-date" class="muted-note"></span>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-workout-summary">&times;</button>
+      </div>
+      <div id="summary-modal-body" class="form-stack"></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button id="btn-download-summary-png" class="btn btn-primary" type="button" style="flex:1;">Download PNG Card</button>
+        <button id="btn-summary-open-map" class="btn btn-secondary" type="button">Open Muscle Map</button>
       </div>
     </div>
   </div>

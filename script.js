@@ -1,10 +1,18 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v6.3";
+  const APP_VERSION = "v6.4";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v6.4",
+      date: "2026-11-15",
+      items: [
+        "Added Post-Workout Summary Card modal shown automatically on session finish and accessible from any past workout in History/Calendar",
+        "Displays session duration, working sets, total volume, new 1RM PRs hit, stimulated muscles, and exercise breakdown with 1-tap PNG Card download"
+      ]
+    },
     {
       version: "v6.3",
       date: "2026-11-15",
@@ -2361,7 +2369,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v6.3)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v6.4)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -3788,6 +3796,231 @@
     });
   }
 
+  function getWorkoutSummaryMetrics(workout) {
+    const durationMs = workout.startedAt && workout.endedAt
+      ? Math.max(0, new Date(workout.endedAt).getTime() - new Date(workout.startedAt).getTime())
+      : 0;
+    let workingSets = 0;
+    let totalVolume = 0;
+    const muscleWeights = new Map();
+    const exBreakdown = [];
+
+    (workout.exercises || []).forEach((item) => {
+      const ex = getExerciseById(item.exerciseId);
+      const sets = (item.sets || []).filter((s) => s.type !== "W" && (Number(s.reps) > 0 || Number(s.weight) > 0));
+      if (!sets.length) return;
+      workingSets += sets.length;
+      const vol = sets.reduce((sum, s) => sum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0);
+      totalVolume += vol;
+      let bestSet = sets[0];
+      let best1RM = 0;
+      sets.forEach((s) => {
+        const w = Number(s.weight) || 0;
+        const r = Number(s.reps) || 0;
+        const est = w > 0 && r > 0 ? w * (1 + r / 30) : 0;
+        if (est >= best1RM) {
+          best1RM = est;
+          bestSet = s;
+        }
+      });
+      exBreakdown.push({
+        name: ex ? ex.name : "Exercise",
+        setsCount: sets.length,
+        volume: vol,
+        topSetLabel: `${Number(bestSet.weight) || 0} kg × ${Number(bestSet.reps) || 0}`
+      });
+      if (ex) {
+        (ex.primary || []).forEach((m) => muscleWeights.set(m, (muscleWeights.get(m) || 0) + sets.length));
+        (ex.secondary || []).forEach((m) => muscleWeights.set(m, (muscleWeights.get(m) || 0) + sets.length * 0.5));
+      }
+    });
+
+    const muscles = Array.from(muscleWeights.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([m, w]) => ({ key: m, label: MUSCLES[m] || m, sets: w }));
+
+    return { durationMs, workingSets, totalVolume, muscles, exBreakdown };
+  }
+
+  function downloadWorkoutSummaryPng(workout, newPRs = []) {
+    const m = getWorkoutSummaryMetrics(workout);
+    const profile = getActiveProfile();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 640;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Background & Swiss Grid
+    ctx.fillStyle = "#0B0D0F";
+    ctx.fillRect(0, 0, 800, 640);
+    ctx.strokeStyle = "rgba(43, 49, 53, 0.28)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= 800; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 640); ctx.stroke();
+    }
+    for (let y = 0; y <= 640; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke();
+    }
+
+    // Outer card frame + crimson top edge
+    ctx.fillStyle = "rgba(17, 20, 22, 0.94)";
+    ctx.fillRect(36, 36, 728, 568);
+    ctx.strokeStyle = "#2B3135";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(36, 36, 728, 568);
+    ctx.fillStyle = "#E3444D";
+    ctx.fillRect(36, 36, 728, 3);
+
+    // Header
+    ctx.fillStyle = "#E3444D";
+    ctx.font = "600 12px 'IBM Plex Mono', monospace";
+    ctx.fillText("MUSCLEMAP // SYSTEM 01 · SESSION TELEMETRY", 64, 76);
+
+    ctx.fillStyle = "#F0F1F1";
+    ctx.font = "700 30px 'Space Grotesk', sans-serif";
+    ctx.fillText((workout.title || "Workout").slice(0, 32), 64, 114);
+
+    ctx.fillStyle = "#A0A7AA";
+    ctx.font = "400 13px 'IBM Plex Mono', monospace";
+    const dateStr = new Date(workout.endedAt).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    ctx.fillText(`${profile.name} · ${dateStr}`, 64, 138);
+
+    // KPI Boxes
+    const kpis = [
+      { label: "DURATION", val: m.durationMs > 0 ? formatDuration(m.durationMs) : "—" },
+      { label: "WORKING SETS", val: String(m.workingSets) },
+      { label: "TOTAL VOLUME", val: `${Math.round(m.totalVolume).toLocaleString()} kg` },
+      { label: "NEW 1RM PRS", val: String(newPRs.length) }
+    ];
+    kpis.forEach((k, idx) => {
+      const bx = 64 + idx * 172;
+      const by = 162;
+      ctx.fillStyle = "#171B1E";
+      ctx.fillRect(bx, by, 158, 74);
+      ctx.strokeStyle = idx === 3 && newPRs.length > 0 ? "#C52F3A" : "#202629";
+      ctx.strokeRect(bx, by, 158, 74);
+      ctx.fillStyle = "#697277";
+      ctx.font = "500 11px 'IBM Plex Mono', monospace";
+      ctx.fillText(k.label, bx + 14, by + 24);
+      ctx.fillStyle = idx === 3 && newPRs.length > 0 ? "#E3444D" : "#F0F1F1";
+      ctx.font = "700 22px 'IBM Plex Mono', monospace";
+      ctx.fillText(k.val, bx + 14, by + 56);
+    });
+
+    // Stimulated Muscles
+    ctx.fillStyle = "#697277";
+    ctx.font = "500 11px 'IBM Plex Mono', monospace";
+    ctx.fillText("STIMULATED MUSCLES", 64, 268);
+    const muscleLine = m.muscles.slice(0, 6).map((x) => `${x.label} (${x.sets.toFixed(1).replace(/\.0$/, "")}s)`).join("  ·  ") || "None logged";
+    ctx.fillStyle = "#F0F1F1";
+    ctx.font = "500 14px 'Space Grotesk', sans-serif";
+    ctx.fillText(muscleLine.slice(0, 78), 64, 292);
+
+    // PRs or Exercise Breakdown
+    let curY = 330;
+    if (newPRs.length) {
+      ctx.fillStyle = "#E3444D";
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.fillText("NEW PERSONAL RECORDS", 64, curY);
+      curY += 22;
+      newPRs.slice(0, 3).forEach((pr) => {
+        ctx.fillStyle = "#F0F1F1";
+        ctx.font = "600 14px 'Space Grotesk', sans-serif";
+        ctx.fillText(`★ ${pr.name}: ${pr.weight} kg × ${pr.reps} (${Math.round(pr.est1RM)} kg 1RM)`, 64, curY);
+        curY += 22;
+      });
+      curY += 10;
+    }
+
+    ctx.fillStyle = "#697277";
+    ctx.font = "500 11px 'IBM Plex Mono', monospace";
+    ctx.fillText("EXERCISE BREAKDOWN", 64, curY);
+    curY += 22;
+    m.exBreakdown.slice(0, newPRs.length ? 5 : 8).forEach((ex) => {
+      ctx.fillStyle = "#F0F1F1";
+      ctx.font = "500 14px 'Space Grotesk', sans-serif";
+      ctx.fillText(ex.name.slice(0, 36), 64, curY);
+      ctx.fillStyle = "#A0A7AA";
+      ctx.font = "500 13px 'IBM Plex Mono', monospace";
+      ctx.fillText(`${ex.setsCount} sets · Top ${ex.topSetLabel} · ${Math.round(ex.volume).toLocaleString()} kg`, 380, curY);
+      curY += 24;
+    });
+
+    // Footer
+    ctx.fillStyle = "#697277";
+    ctx.font = "400 11px 'IBM Plex Mono', monospace";
+    ctx.fillText(`MUSCLEMAP ${APP_VERSION} · GENERATED LOCALLY`, 64, 582);
+
+    const link = document.createElement("a");
+    link.download = `musclemap_${(workout.title || "workout").toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${new Date(workout.endedAt).toISOString().slice(0, 10)}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  function openWorkoutSummaryModal(workout, newPRs = []) {
+    if (!workout) return;
+    const m = getWorkoutSummaryMetrics(workout);
+    const titleEl = document.getElementById("summary-modal-title");
+    const dateEl = document.getElementById("summary-modal-date");
+    const bodyEl = document.getElementById("summary-modal-body");
+    if (titleEl) titleEl.textContent = workout.title || "Workout Summary";
+    if (dateEl) dateEl.textContent = new Date(workout.endedAt).toLocaleString();
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="kpi-grid">
+          <div class="kpi-box"><span class="kpi-label">Duration</span><strong class="kpi-value">${m.durationMs > 0 ? formatDuration(m.durationMs) : "—"}</strong></div>
+          <div class="kpi-box"><span class="kpi-label">Working Sets</span><strong class="kpi-value">${m.workingSets}</strong></div>
+          <div class="kpi-box"><span class="kpi-label">Total Volume</span><strong class="kpi-value">${Math.round(m.totalVolume).toLocaleString()} kg</strong></div>
+        </div>
+        ${
+          newPRs.length
+            ? `<div class="card" style="border-color:rgba(227,68,77,0.5);">
+                <span class="eyebrow" style="color:#E3444D;">New 1RM Personal Records (${newPRs.length})</span>
+                <div class="card-stack" style="margin-top:6px;">
+                  ${newPRs
+                    .map(
+                      (pr) => `<div class="muscle-ex-item"><strong>${escapeHtml(pr.name)}</strong><span class="badge badge-primary">${pr.weight} kg × ${pr.reps} · ${Math.round(pr.est1RM)} kg 1RM</span></div>`
+                    )
+                    .join("")}
+                </div>
+              </div>`
+            : ""
+        }
+        <div>
+          <span class="eyebrow">Stimulated Muscles</span>
+          <div class="badge-row">
+            ${
+              m.muscles.length
+                ? m.muscles.map((x) => `<span class="badge badge-secondary">${escapeHtml(x.label)} (${x.sets.toFixed(1).replace(/\.0$/, "")}s)</span>`).join("")
+                : `<span class="muted-note">No working sets logged</span>`
+            }
+          </div>
+        </div>
+        <div>
+          <span class="eyebrow">Exercise Breakdown</span>
+          <div class="card-stack">
+            ${m.exBreakdown
+              .map(
+                (ex) => `<div class="muscle-ex-item"><span><strong>${escapeHtml(ex.name)}</strong></span><span class="muted-note">${ex.setsCount} sets · ${escapeHtml(ex.topSetLabel)} · ${Math.round(ex.volume).toLocaleString()} kg</span></div>`
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    }
+    const dlBtn = document.getElementById("btn-download-summary-png");
+    if (dlBtn) dlBtn.onclick = () => downloadWorkoutSummaryPng(workout, newPRs);
+    const mapBtn = document.getElementById("btn-summary-open-map");
+    if (mapBtn) {
+      mapBtn.onclick = () => {
+        closeModal("modal-workout-summary");
+        switchView("anatomy");
+      };
+    }
+    openModal("modal-workout-summary");
+  }
+
   function finishWorkout() {
     const active = getActiveWorkout();
     if (!active) return;
@@ -3813,19 +4046,44 @@
       return;
     }
 
-    state.workouts.push({
+    const newPRs = [];
+    cleanedExercises.forEach((item) => {
+      const ex = getExerciseById(item.exerciseId);
+      if (!ex) return;
+      const histBest = getHistoricalBest1RM(item.exerciseId);
+      let bestSet = null;
+      let best1RM = histBest;
+      item.sets.forEach((s) => {
+        if (s.type === "W") return;
+        const w = Number(s.weight) || 0;
+        const r = Number(s.reps) || 0;
+        if (w <= 0 || r <= 0) return;
+        const est = w * (1 + r / 30);
+        if (est > best1RM) {
+          best1RM = est;
+          bestSet = s;
+        }
+      });
+      if (bestSet && best1RM > histBest) {
+        newPRs.push({ name: ex.name, weight: bestSet.weight, reps: bestSet.reps, est1RM: best1RM });
+      }
+    });
+
+    const savedWorkout = {
       id: active.id,
       profileId: state.activeProfileId,
       title: document.getElementById("workout-title-input").value.trim() || "Workout",
       startedAt: active.startedAt,
       endedAt: new Date().toISOString(),
       exercises: cleanedExercises
-    });
+    };
+    state.workouts.push(savedWorkout);
 
     releaseWakeLock();
     stopRestTimer();
     setActiveWorkout(null);
     switchView("anatomy");
+    openWorkoutSummaryModal(savedWorkout, newPRs);
   }
 
   /* ---------------- EXERCISE PICKER & LIBRARY ---------------- */
@@ -4317,8 +4575,15 @@
             </div>`;
         })
         .join("")}
-      <button id="btn-save-as-routine" class="btn btn-secondary btn-full" type="button">Save as Custom Routine</button>
+      <div class="btn-row">
+        <button id="btn-view-wk-summary" class="btn btn-primary" type="button" style="flex:1;">Summary Card</button>
+        <button id="btn-save-as-routine" class="btn btn-secondary" type="button" style="flex:1;">Save as Routine</button>
+      </div>
     `;
+    document.getElementById("btn-view-wk-summary").addEventListener("click", () => {
+      closeModal("modal-workout-detail");
+      openWorkoutSummaryModal(w, []);
+    });
     document.getElementById("btn-save-as-routine").addEventListener("click", () => {
       if (!state.routines[state.activeProfileId]) state.routines[state.activeProfileId] = [];
       state.routines[state.activeProfileId].push({
