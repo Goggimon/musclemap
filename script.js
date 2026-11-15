@@ -1,10 +1,20 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v5.1";
+  const APP_VERSION = "v6.0";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v6.0",
+      date: "2026-11-15",
+      items: [
+        "SYSTEM 01 Redesign (Cybernetic × Techwear × Swiss Grid): #0B0D0F graphite surfaces, restrained #C52F3A/#E3444D blood-red illumination, Space Grotesk + IBM Plex Mono typography",
+        "Desktop Iron Rail navigation with M/S01 monogram, unified geometric icons, and contextual SYSTEM / 01 top bar",
+        "Expanded Anatomy Centrepiece: 2-column biometric scan workspace with OVERVIEW / STIMULUS / VOLUME / FREQUENCY contextual tabs",
+        "Re-themed Chart.js performance charts, calendar, workout logger, and mobile-first bottom navigation"
+      ]
+    },
     {
       version: "v5.1",
       date: "2026-11-15",
@@ -742,8 +752,8 @@
     return {
       activeProfileId: "u1",
       profiles: [
-        { id: "u1", name: "Person 1", color: "#dc2626" },
-        { id: "u2", name: "Person 2", color: "#9ca3af" }
+        { id: "u1", name: "Person 1", color: "#C52F3A" },
+        { id: "u2", name: "Person 2", color: "#A0A7AA" }
       ],
       bodyProfiles: {
         u1: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" },
@@ -770,6 +780,7 @@
   let currentDashPreset = "overview";
   let currentSide = "front";
   let currentMetric = "sets";
+  let currentAnatomyTab = "overview";
   let currentWindow = "7";
   let selectedMuscle = null;
   let libraryMuscleFilter = "all";
@@ -1162,7 +1173,7 @@
   }
 
   function drawEquipmentSvg(equip, wr, an) {
-    let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#262a34" stroke-width="2" stroke-linecap="round"/>`;
+    let html = `<line x1="12" y1="152" x2="208" y2="152" stroke="#202629" stroke-width="2" stroke-linecap="round"/>`;
     if (equip === "bench_flat") {
       html += `
         <rect x="44" y="106" width="98" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
@@ -1179,12 +1190,12 @@
         <line x1="134" y1="125" x2="134" y2="152" stroke="#3a404d" stroke-width="3.5" stroke-linecap="round"/>`;
     } else if (equip === "pullup_bar") {
       html += `
-        <line x1="68" y1="26" x2="152" y2="26" stroke="#9ca3af" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="68" y1="26" x2="152" y2="26" stroke="#A0A7AA" stroke-width="4.5" stroke-linecap="round"/>
         <line x1="72" y1="26" x2="72" y2="152" stroke="#2a303c" stroke-width="2.5"/>
         <line x1="148" y1="26" x2="148" y2="152" stroke="#2a303c" stroke-width="2.5"/>`;
     } else if (equip === "dip_bars") {
       html += `
-        <line x1="84" y1="92" x2="132" y2="92" stroke="#9ca3af" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="84" y1="92" x2="132" y2="92" stroke="#A0A7AA" stroke-width="4.5" stroke-linecap="round"/>
         <line x1="90" y1="92" x2="90" y2="152" stroke="#3a404d" stroke-width="3.5"/>
         <line x1="126" y1="92" x2="126" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "machine_seat") {
@@ -1194,7 +1205,7 @@
         <line x1="102" y1="115" x2="102" y2="152" stroke="#3a404d" stroke-width="3.5"/>`;
     } else if (equip === "lat_machine") {
       html += `
-        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>
+        <line x1="114" y1="14" x2="114" y2="${wr[1]}" stroke="#A0A7AA" stroke-width="1.6" stroke-dasharray="3 2"/>
         <line x1="70" y1="14" x2="156" y2="14" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
         <line x1="${wr[0] - 12}" y1="${wr[1]}" x2="${wr[0] + 12}" y2="${wr[1]}" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
         <rect x="86" y="108" width="46" height="9" rx="2.5" fill="#1b1f27" stroke="#3f4654" stroke-width="1.2"/>
@@ -1203,8 +1214,8 @@
       const py = equip === "cable_high" ? 36 : 78;
       html += `
         <line x1="36" y1="20" x2="36" y2="152" stroke="#3f4654" stroke-width="4.5" stroke-linecap="round"/>
-        <circle cx="36" cy="${py}" r="5" fill="#191c22" stroke="#dc2626" stroke-width="2"/>
-        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 2"/>
+        <circle cx="36" cy="${py}" r="5" fill="#191c22" stroke="#C52F3A" stroke-width="2"/>
+        <line x1="36" y1="${py}" x2="${wr[0]}" y2="${wr[1]}" stroke="#A0A7AA" stroke-width="1.6" stroke-dasharray="3 2"/>
         <rect x="${wr[0] - 3}" y="${wr[1] - 4}" width="6" height="8" rx="1.5" fill="#f59e0b"/>`;
     } else if (equip === "leg_press") {
       const sx = an ? an[0] : 152;
@@ -1713,7 +1724,7 @@
 
   function getSegmentHighlightColor(ex, groupMuscles, fallback) {
     if (!ex) return fallback;
-    if (ex.primary.some((m) => groupMuscles.includes(m))) return "#dc2626";
+    if (ex.primary.some((m) => groupMuscles.includes(m))) return "#C52F3A";
     if (ex.secondary.some((m) => groupMuscles.includes(m))) return "#f59e0b";
     return fallback;
   }
@@ -1744,10 +1755,10 @@
 
     // Highlight working muscles on the 2D stickman
     const torsoColor = getSegmentHighlightColor(activeFormExercise, ["chest", "lats", "mid_back", "lower_back", "abs", "obliques", "traps"], "#d1d5db");
-    const upperArmColor = getSegmentHighlightColor(activeFormExercise, ["biceps", "triceps", "front_delts", "side_delts", "rear_delts"], "#9ca3af");
+    const upperArmColor = getSegmentHighlightColor(activeFormExercise, ["biceps", "triceps", "front_delts", "side_delts", "rear_delts"], "#A0A7AA");
     const foreArmColor = getSegmentHighlightColor(activeFormExercise, ["forearms", "biceps", "triceps"], "#cbd5e1");
     const thighColor = getSegmentHighlightColor(activeFormExercise, ["quads", "hamstrings", "glutes"], "#6b7280");
-    const calfColor = getSegmentHighlightColor(activeFormExercise, ["calves", "hamstrings"], "#9ca3af");
+    const calfColor = getSegmentHighlightColor(activeFormExercise, ["calves", "hamstrings"], "#A0A7AA");
 
     let propSvg = "";
     if (rig.prop === "bar") {
@@ -1808,7 +1819,7 @@
 
         <!-- Head with brow orientation -->
         <circle cx="${p.head[0]}" cy="${p.head[1]}" r="8.5" fill="#191c22" stroke="#f3f4f6" stroke-width="2.2"/>
-        <line x1="${p.head[0] + 2 * dir}" y1="${p.head[1] - 1.5}" x2="${p.head[0] + 7 * dir}" y2="${p.head[1] - 1.5}" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
+        <line x1="${p.head[0] + 2 * dir}" y1="${p.head[1] - 1.5}" x2="${p.head[0] + 7 * dir}" y2="${p.head[1] - 1.5}" stroke="#C52F3A" stroke-width="2" stroke-linecap="round"/>
 
         <!-- Near-side Working Arm -->
         ${taperedLimb(p.sh, p.el, 4.6, 3.3, upperArmColor, "#0b0c0e")}
@@ -2235,6 +2246,17 @@
       b.classList.toggle("active", b.dataset.nav === viewName);
     });
 
+    const sectionTitles = {
+      dashboard: "SYSTEM / 01 · OVERVIEW",
+      anatomy: "SYSTEM / 01 · MUSCLE OVERVIEW",
+      workout: "SYSTEM / 01 · TRAINING SYSTEM",
+      library: "SYSTEM / 01 · EXERCISE LIBRARY",
+      analytics: "SYSTEM / 01 · PERFORMANCE",
+      guide: "SYSTEM / 01 · APP GUIDE"
+    };
+    const topLabel = document.getElementById("top-section-label");
+    if (topLabel) topLabel.textContent = sectionTitles[viewName] || "SYSTEM / 01";
+
     if (viewName === "dashboard") renderDashboard();
     if (viewName === "anatomy") renderAnatomy();
     if (viewName === "workout") renderWorkoutView();
@@ -2315,7 +2337,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v5.1)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v6.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -2850,8 +2872,8 @@
     document.getElementById("btn-view-front").classList.toggle("active", currentSide === "front");
     document.getElementById("btn-view-back").classList.toggle("active", currentSide === "back");
 
-    document.querySelectorAll(".metric-btn").forEach((b) => {
-      b.classList.toggle("active", b.dataset.metric === currentMetric);
+    document.querySelectorAll(".anatomy-tab-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.anatomyTab === currentAnatomyTab);
     });
 
     const cutoff =
@@ -2895,7 +2917,56 @@
     });
 
     renderMusclePanel(stats, allTimeStats);
+    renderAnatomyTabSummary(stats, allTimeStats);
     renderBalancePanel(stats);
+  }
+
+  function renderAnatomyTabSummary(stats, allTimeStats) {
+    const el = document.getElementById("anatomy-tab-summary");
+    if (!el) return;
+    if (currentAnatomyTab === "overview") {
+      el.innerHTML = "";
+      return;
+    }
+    if (currentAnatomyTab === "stimulus") {
+      const top = Object.entries(stats)
+        .filter(([, v]) => v.weightedSets > 0)
+        .sort((a, b) => b[1].weightedSets - a[1].weightedSets)
+        .slice(0, 4);
+      el.innerHTML = `
+        <span class="eyebrow">Stimulus Leaders (${currentWindow === "all" ? "ALL" : currentWindow + "D"})</span>
+        ${top.length
+          ? top.map(([m, v]) => `<div class="muscle-ex-item"><strong>${MUSCLES[m]}</strong><span class="muted-note">${v.weightedSets.toFixed(1).replace(/\.0$/, "")} weighted sets</span></div>`).join("")
+          : `<div class="muted-note">No stimulus logged in this window.</div>`}
+      `;
+    } else if (currentAnatomyTab === "volume") {
+      const top = Object.entries(stats)
+        .filter(([, v]) => v.volume > 0)
+        .sort((a, b) => b[1].volume - a[1].volume)
+        .slice(0, 4);
+      el.innerHTML = `
+        <span class="eyebrow">Volume Leaders (${currentWindow === "all" ? "ALL" : currentWindow + "D"})</span>
+        ${top.length
+          ? top.map(([m, v]) => `<div class="muscle-ex-item"><strong>${MUSCLES[m]}</strong><span class="muted-note">${Math.round(v.volume).toLocaleString()} kg</span></div>`).join("")
+          : `<div class="muted-note">No volume logged in this window.</div>`}
+      `;
+    } else if (currentAnatomyTab === "frequency") {
+      const entries = Object.entries(allTimeStats).map(([m, v]) => ({
+        m,
+        last: v.lastTrained,
+        rec: getRecoveryState(v.lastTrained)
+      }));
+      const fatigued = entries.filter((e) => e.rec.className === "heat-rec-fatigued").length;
+      const recovering = entries.filter((e) => e.rec.className === "heat-rec-recovering").length;
+      const ready = entries.length - fatigued - recovering;
+      el.innerHTML = `
+        <span class="eyebrow">Recovery &amp; Frequency</span>
+        <div class="balance-grid">
+          <div class="kpi-box"><span class="kpi-label">Fatigued / Rec</span><strong class="kpi-value">${fatigued} / ${recovering}</strong></div>
+          <div class="kpi-box"><span class="kpi-label">Fresh / Rested</span><strong class="kpi-value">${ready}</strong></div>
+        </div>
+      `;
+    }
   }
 
   function renderMusclePanel(stats, allTimeStats = stats) {
@@ -3762,8 +3833,8 @@
           {
             label: "Weekly Volume (kg)",
             data: weeks.map((w) => Math.round(w.volume)),
-            borderColor: "#dc2626",
-            backgroundColor: "rgba(220, 38, 38, 0.14)",
+            borderColor: "#C52F3A",
+            backgroundColor: "rgba(197, 47, 58, 0.15)",
             fill: true,
             tension: 0.25
           }
@@ -3774,8 +3845,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
-          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" }, beginAtZero: true }
+          x: { ticks: { color: "#A0A7AA" }, grid: { display: false } },
+          y: { ticks: { color: "#A0A7AA" }, grid: { color: "#202629" }, beginAtZero: true }
         }
       }
     });
@@ -3910,15 +3981,15 @@
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "Weighted Sets", data: values, backgroundColor: "#dc2626", borderRadius: 3 }]
+        datasets: [{ label: "Weighted Sets", data: values, backgroundColor: "#C52F3A", borderRadius: 3 }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { display: false } },
-          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" }, beginAtZero: true }
+          x: { ticks: { color: "#A0A7AA", font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: "#A0A7AA" }, grid: { color: "#202629" }, beginAtZero: true }
         }
       }
     });
@@ -3960,8 +4031,8 @@
           {
             label: "Est. 1RM (kg)",
             data: data.length ? data : [0],
-            borderColor: "#dc2626",
-            backgroundColor: "rgba(220, 38, 38, 0.14)",
+            borderColor: "#C52F3A",
+            backgroundColor: "rgba(197, 47, 58, 0.15)",
             fill: true,
             tension: 0.25
           }
@@ -3972,8 +4043,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
-          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" } }
+          x: { ticks: { color: "#A0A7AA" }, grid: { display: false } },
+          y: { ticks: { color: "#A0A7AA" }, grid: { color: "#202629" } }
         }
       }
     });
@@ -4131,7 +4202,7 @@
           {
             label: "Weight (kg)",
             data: asc.length ? asc.map((e) => e.weight) : [0],
-            borderColor: "#dc2626",
+            borderColor: "#C52F3A",
             tension: 0.25
           }
         ]
@@ -4141,8 +4212,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#9ca3af" }, grid: { display: false } },
-          y: { ticks: { color: "#9ca3af" }, grid: { color: "#262a34" } }
+          x: { ticks: { color: "#A0A7AA" }, grid: { display: false } },
+          y: { ticks: { color: "#A0A7AA" }, grid: { color: "#202629" } }
         }
       }
     });
@@ -4389,9 +4460,10 @@
       currentSide = "back";
       renderAnatomy();
     });
-    document.querySelectorAll(".metric-btn").forEach((btn) => {
+    document.querySelectorAll(".anatomy-tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        currentMetric = btn.dataset.metric;
+        currentAnatomyTab = btn.dataset.anatomyTab || "overview";
+        currentMetric = btn.dataset.metric || "sets";
         renderAnatomy();
       });
     });
