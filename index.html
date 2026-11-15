@@ -23,7 +23,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v3.1</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v3.2</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -543,6 +543,32 @@
           <div id="measurements-list" class="card-stack"></div>
         </div>
       </section>
+
+      <!-- 6. APP GUIDE & FEATURE DIRECTORY VIEW -->
+      <section id="view-guide" class="view">
+        <div class="dash-top-bar">
+          <div>
+            <p class="eyebrow">App Guide</p>
+            <h1>Where Every Feature Lives</h1>
+          </div>
+          <input id="guide-search-input" class="input" type="search" placeholder="Search features (e.g., plate, rest, tier, heatmap)..." style="max-width:320px;" />
+        </div>
+
+        <div class="card focus-banner" style="margin-bottom:14px;">
+          <div>
+            <span class="eyebrow">Beginner Quick Start</span>
+            <strong>3 Steps to Get Started</strong>
+            <div class="muted-note" style="margin-top:4px;">
+              1. Enter your body weight in <strong>Stats &rarr; Body Info</strong> to unlock Tier 1–4 weight recommendations. &nbsp;
+              2. Start a session in <strong>Workout</strong> (or pick a Recommended Split). &nbsp;
+              3. Check <strong>Map</strong> to see stimulated &amp; recovered muscles.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="button" data-guide-jump="analytics:body">Body Info &rarr;</button>
+        </div>
+
+        <div id="guide-directory" class="guide-grid"></div>
+      </section>
     </main>
 
     <!-- Bottom Navigation -->
@@ -581,6 +607,14 @@
           <line x1="6" y1="20" x2="6" y2="14"></line>
         </svg>
         <span>Stats</span>
+      </button>
+      <button class="nav-btn" type="button" data-nav="guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>Guide</span>
       </button>
     </nav>
   </div>

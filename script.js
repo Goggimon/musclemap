@@ -1,10 +1,18 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v3.1";
+  const APP_VERSION = "v3.2";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v3.2",
+      date: "2026-11-15",
+      items: [
+        "Added dedicated Guide tab alongside Home/Map/Workout/Library/Stats showing where every feature lives",
+        "Added 3-step Beginner Quick Start, live feature search, and 1-tap jump buttons to every screen"
+      ]
+    },
     {
       version: "v3.1",
       date: "2026-11-15",
@@ -1627,6 +1635,140 @@
     if (viewName === "workout") renderWorkoutView();
     if (viewName === "library") renderLibrary();
     if (viewName === "analytics") renderAnalytics();
+    if (viewName === "guide") renderGuide();
+  }
+
+  /* ---------------- APP GUIDE & FEATURE DIRECTORY ---------------- */
+  const GUIDE_SECTIONS = [
+    {
+      title: "Home (Training Home)",
+      eyebrow: "Dashboard",
+      jump: "dashboard",
+      jumpLabel: "Open Home",
+      items: [
+        ["Overview / Training / Analytics presets", "Switch between daily summary, quick-start splits, and top PR/muscle highlights."],
+        ["Session Recovery banner", "Automatically appears if you left a workout mid-session so you can Resume or Discard."],
+        ["7D KPIs & Weekly Streak", "Tracks 7-day sessions, total kg lifted, working sets, and consecutive active weeks."],
+        ["Customize button", "Toggle which widgets appear on your Home Overview."]
+      ]
+    },
+    {
+      title: "Map (Anatomical Heatmap)",
+      eyebrow: "Muscle Stimulus",
+      jump: "anatomy",
+      jumpLabel: "Open Map",
+      items: [
+        ["Front / Back diagram", "Tap any muscle to see weighted sets, volume, last trained date, and matching exercises."],
+        ["Sets / Volume / Recovery modes", "Switch between set count, kg volume, or live recovery status (Fatigued, Recovering, Fresh, Rested)."],
+        ["7D / 30D / All-Time windows", "Compare short-term stimulus against long-term training focus."],
+        ["Balance Diagnostics", "Checks your Push/Pull and Upper/Lower set ratios and highlights your least-trained muscle."]
+      ]
+    },
+    {
+      title: "Workout (Active Logger & Routines)",
+      eyebrow: "Training",
+      jump: "workout",
+      jumpLabel: "Open Workout",
+      items: [
+        ["Blank Workout & Recommended Splits", "Start from scratch or pick Chest, Back, Legs, Shoulders, Arms, or Dumbbell-only days."],
+        ["Custom Routines (Create / Edit / Reorder)", "Build your own routines and reorder exercises with up/down arrows."],
+        ["Set Types (1 / W / D / F)", "Tap the set number pill to cycle Working, Warmup (W), Drop (D), or Failure (F). Warmups don't skew PRs."],
+        ["Live PR! Badges & Overload Targets", "Shows your last session's weight/reps, suggests +2.5 kg or +1 rep, and flags PRs as you type."],
+        ["Smart Rest Timer & Wake Lock", "Auto-starts when you check a set, adjusts -15s/+15s, keeps screen awake, and notifies when done."],
+        ["Swap, Plate Calc, Notes & RPE", "Substitute exercises mid-workout, calculate barbell plates, and log per-exercise notes or RPE."]
+      ]
+    },
+    {
+      title: "Library (Exercises, Form & Tiers)",
+      eyebrow: "60+ Exercises",
+      jump: "library",
+      jumpLabel: "Open Library",
+      items: [
+        ["Search & Muscle Filters", "Filter all exercises by muscle group or search by name and equipment."],
+        ["Animated Form Viewer", "Tap Form on any exercise to watch the stickman animation (Play/Pause/0.5x) and read form cues."],
+        ["Tier 1–4 Weight Recommendations", "When your body weight is entered in Body Info, tap Tiers or Form to see Beginner–Maximum weights and 1-tap Use."],
+        ["+ Custom Exercise", "Add your own exercises with primary (1.0x) and secondary (0.5x) muscle tags."]
+      ]
+    },
+    {
+      title: "Stats (Charts, Calendar & Body Info)",
+      eyebrow: "Analytics",
+      jump: "analytics:charts",
+      jumpLabel: "Open Stats",
+      items: [
+        ["Charts tab", "View 7D/30D Muscle Stimulus bar chart, Est. 1RM Strength Progression, and 8-Week Volume Trend."],
+        ["Calendar tab", "Browse monthly workout dots and tap any date to inspect that day's sessions."],
+        ["History & CSV Export", "Review past workouts, save any past workout as a Routine, or export everything to CSV."],
+        ["Body Info tab", "Enter your weight, height, age, goal, and experience level (unlocks Tier weight recommendations) plus circumference logs."]
+      ]
+    },
+    {
+      title: "Top Bar (Profiles, Backups & Version)",
+      eyebrow: "System",
+      jump: "modal:profile",
+      jumpLabel: "Open Profile",
+      items: [
+        ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
+        ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
+        ["Version Pill (v3.2)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+      ]
+    }
+  ];
+
+  function handleGuideJump(target) {
+    if (!target) return;
+    if (target === "modal:profile") {
+      renderProfileModal();
+      openModal("modal-profile-data");
+      return;
+    }
+    const [viewName, subTab] = target.split(":");
+    switchView(viewName);
+    if (viewName === "analytics" && subTab) {
+      document.querySelector(`.analytics-tab[data-tab="${subTab}"]`)?.click();
+    }
+  }
+
+  function renderGuide() {
+    const container = document.getElementById("guide-directory");
+    if (!container) return;
+    const q = (document.getElementById("guide-search-input")?.value || "").trim().toLowerCase();
+
+    const filtered = GUIDE_SECTIONS.map((sec) => {
+      if (!q) return sec;
+      const titleMatch = sec.title.toLowerCase().includes(q) || sec.eyebrow.toLowerCase().includes(q);
+      const matchingItems = sec.items.filter(
+        ([name, desc]) => name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
+      );
+      if (titleMatch) return sec;
+      if (matchingItems.length) return { ...sec, items: matchingItems };
+      return null;
+    }).filter(Boolean);
+
+    if (!filtered.length) {
+      container.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">No features match "${escapeHtml(q)}".</div>`;
+      return;
+    }
+
+    container.innerHTML = filtered
+      .map(
+        (sec) => `
+        <div class="card guide-card">
+          <div class="card-head">
+            <div>
+              <span class="eyebrow">${escapeHtml(sec.eyebrow)}</span>
+              <h2>${escapeHtml(sec.title)}</h2>
+            </div>
+            <button class="btn btn-secondary btn-sm" type="button" data-guide-jump="${escapeHtml(sec.jump)}">${escapeHtml(sec.jumpLabel)} &rarr;</button>
+          </div>
+          <ul class="guide-feature-list">
+            ${sec.items
+              .map(([name, desc]) => `<li><strong>${escapeHtml(name)}:</strong> ${escapeHtml(desc)}</li>`)
+              .join("")}
+          </ul>
+        </div>`
+      )
+      .join("");
   }
 
   function openModal(id) {
@@ -3696,6 +3838,11 @@
     });
 
     document.getElementById("btn-version-badge")?.addEventListener("click", openChangelogModal);
+    document.getElementById("guide-search-input")?.addEventListener("input", renderGuide);
+    document.getElementById("view-guide")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-guide-jump]");
+      if (btn) handleGuideJump(btn.dataset.guideJump);
+    });
 
     document.getElementById("btn-new-routine").addEventListener("click", () => openRoutineModal(null));
     document.getElementById("form-routine").addEventListener("submit", (e) => {

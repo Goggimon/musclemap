@@ -931,7 +931,7 @@ button.card,
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   z-index: 30;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -946,7 +946,7 @@ button.card,
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 600;
   cursor: pointer;
   position: relative;
@@ -1689,5 +1689,40 @@ button.card,
   gap: 4px;
   font-size: 12.5px;
   color: var(--text-muted);
+}
+
+/* ---------------- V3.2 GUIDE DIRECTORY ---------------- */
+.guide-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 960px) {
+  .guide-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+}
+
+.guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-feature-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.guide-feature-list strong {
+  color: var(--text);
 }
 
