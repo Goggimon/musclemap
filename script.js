@@ -1,10 +1,34 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v6.0";
+  const APP_VERSION = "v6.3";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v6.3",
+      date: "2026-11-15",
+      items: [
+        "Added specular crimson top-edge highlights, biometric scan sweep & PEC/CORE/QUAD callouts on the hero figure",
+        "Upgraded Stimulus Periodic bars with glowing cap dots & dashed average line, multi-arc concentric Session Ring, and mini Intensity waveform"
+      ]
+    },
+    {
+      version: "v6.2",
+      date: "2026-11-15",
+      items: [
+        "Added subtle animated cybernetic micro-grid and drifting telemetry nodes background with smoked-glass hardware panels",
+        "Enriched Bento Overview with SVG session progress ring, chart Peak/Avg summary column, Set Target hero readout, and 7-day volume sparkline"
+      ]
+    },
+    {
+      version: "v6.1",
+      date: "2026-11-15",
+      items: [
+        "Replaced the left Iron Rail with a centered top horizontal navigation bar on desktop for full-width workspace layout",
+        "Rebuilt Home Overview into a 2-row Bento Swiss Grid: Hero Anatomy Scan + 7D Stimulus Bar Chart on top, and Next Session + Segmented Set Target + Weekly Activity Strip below"
+      ]
+    },
     {
       version: "v6.0",
       date: "2026-11-15",
@@ -2337,7 +2361,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v6.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v6.3)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -2524,6 +2548,189 @@
     openModal("modal-customize-dash");
   }
 
+  function renderDashboardBento(allWorkouts, recent7, stats7, trainedMuscles, totalSets) {
+    // 1. Mini anatomy muscle highlights inside hero panel
+    document.querySelectorAll("#dash-hero-scan-svg .dash-mini-muscle").forEach((g) => {
+      const m = g.dataset.miniMuscle;
+      const lvl = getHeatLevel(stats7[m]?.weightedSets || 0, "7");
+      const fills = ["#23282D", "#4E1B20", "#7D2028", "#B32833", "#E3444D"];
+      g.setAttribute("fill", fills[lvl] || "#23282D");
+    });
+
+    // 2. Top 6 trained muscles vertical bar chart (with hatched peak bar)
+    const barsEl = document.getElementById("dash-bento-bars");
+    if (barsEl) {
+      const top6 = trainedMuscles.slice(0, 6);
+      if (!top6.length) {
+        const placeholders = ["Chest", "Lats", "Quads", "Delts", "Arms", "Core"];
+        barsEl.innerHTML = placeholders
+          .map((lbl) => `<div class="bento-bar-col"><span class="bento-bar-val">0</span><div class="bento-bar" style="height:10%"></div><span class="bento-bar-label">${lbl}</span></div>`)
+          .join("");
+      } else {
+        const maxSets = Math.max(1, ...top6.map(([, v]) => v.weightedSets));
+        barsEl.innerHTML = top6
+          .map(([m, v], idx) => {
+            const pct = Math.max(12, Math.round((v.weightedSets / maxSets) * 100));
+            const valStr = v.weightedSets.toFixed(1).replace(/\.0$/, "");
+            const shortName = (MUSCLES[m] || m).replace("Front ", "F.").replace("Mid ", "M.").slice(0, 6);
+            return `
+              <div class="bento-bar-col">
+                <span class="bento-bar-val">${valStr}</span>
+                <span class="bento-bar-dot" style="${idx === 0 ? "background:#E3444D;box-shadow:0 0 6px #E3444D;" : ""}"></span>
+                <div class="bento-bar ${idx === 0 ? "peak" : ""}" style="height:${pct}%"></div>
+                <span class="bento-bar-label">${escapeHtml(shortName)}</span>
+              </div>`;
+          })
+          .join("");
+      }
+    }
+
+    // 3. 10-segment weekly set target meter
+    const targetSets = 40;
+    const fracEl = document.getElementById("dash-target-fraction");
+    const meterEl = document.getElementById("dash-target-bars");
+    if (fracEl) fracEl.textContent = `${totalSets} / ${targetSets} sets`;
+    if (meterEl) {
+      const litCount = Math.min(10, Math.round((totalSets / targetSets) * 10));
+      meterEl.innerHTML = Array.from({ length: 10 }, (_, i) =>
+        `<div class="bento-seg-pill ${i < litCount ? "lit" : ""}"></div>`
+      ).join("");
+    }
+
+    // 4. 7-day Mon–Sun activity strip
+    const weekEl = document.getElementById("dash-week-strip");
+    if (weekEl) {
+      const now = new Date();
+      const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0..Sun=6
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dayOfWeek);
+      monday.setHours(0, 0, 0, 0);
+
+      const trainedKeys = new Set(recent7.map((w) => toLocalDateKey(w.endedAt)));
+      const todayKey = toLocalDateKey(now);
+      const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+      weekEl.innerHTML = dayNames
+        .map((dn, idx) => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + idx);
+          const k = toLocalDateKey(d);
+          const isTrained = trainedKeys.has(k);
+          const isToday = k === todayKey;
+          return `
+            <div class="bento-day-pill ${isToday ? "today-day" : ""} ${isTrained ? "active-day" : ""}">
+              <span>${dn}</span>
+              <strong>${d.getDate()}</strong>
+            </div>`;
+        })
+        .join("");
+    }
+
+    // 5. Chart meta (Peak muscle + 7D Avg)
+    const chartMetaEl = document.getElementById("dash-chart-meta");
+    if (chartMetaEl) {
+      const peak = trainedMuscles[0];
+      const avg = trainedMuscles.length
+        ? (trainedMuscles.reduce((s, [, v]) => s + v.weightedSets, 0) / trainedMuscles.length).toFixed(1)
+        : "0";
+      chartMetaEl.innerHTML = `
+        <div class="bento-stat">
+          <span class="kpi-label">Peak Focus</span>
+          <strong style="font-size:13px;">${peak ? escapeHtml(MUSCLES[peak[0]]) : "—"}</strong>
+        </div>
+        <div class="bento-stat">
+          <span class="kpi-label">Avg / Group</span>
+          <strong style="font-family:var(--font-mono);font-size:14px;">${avg} sets</strong>
+        </div>
+      `;
+    }
+
+    // 6. Session radial progress ring
+    const ringEl = document.getElementById("dash-session-ring");
+    if (ringEl) {
+      const targetSessions = 5;
+      const done = recent7.length;
+      const pct = Math.min(1, done / targetSessions);
+      const r = 34;
+      const circ = 2 * Math.PI * r;
+      const dash = (circ * pct).toFixed(1);
+      const r2 = 25;
+      const circ2 = 2 * Math.PI * r2;
+      const setPct = Math.min(1, totalSets / 40);
+      const dash2 = (circ2 * setPct).toFixed(1);
+      ringEl.innerHTML = `
+        <svg viewBox="0 0 88 88" width="88" height="88">
+          <circle cx="44" cy="44" r="${r}" fill="none" stroke="#202629" stroke-width="6" />
+          <circle cx="44" cy="44" r="${r}" fill="none" stroke="#E3444D" stroke-width="6"
+                  stroke-dasharray="${dash} ${circ.toFixed(1)}" stroke-linecap="round"
+                  transform="rotate(-90 44 44)" />
+          <circle cx="44" cy="44" r="${r2}" fill="none" stroke="#1D2226" stroke-width="4" />
+          <circle cx="44" cy="44" r="${r2}" fill="none" stroke="#C98A3A" stroke-width="4"
+                  stroke-dasharray="${dash2} ${circ2.toFixed(1)}" stroke-linecap="round"
+                  transform="rotate(-90 44 44)" />
+          <text x="44" y="42" text-anchor="middle" fill="#F0F1F1" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600">${done}/${targetSessions}</text>
+          <text x="44" y="54" text-anchor="middle" fill="#697277" font-family="IBM Plex Mono, monospace" font-size="7.5">7D SESS</text>
+        </svg>
+      `;
+
+      const waveEl = document.getElementById("dash-hero-wave");
+      if (waveEl) {
+        const vals = trainedMuscles.slice(0, 6).map(([, v]) => v.weightedSets);
+        const wPts = (vals.length >= 2 ? vals : [2, 5, 3, 7, 4, 6]).map((v, i, arr) => {
+          const mx = Math.max(1, ...arr);
+          return `${(4 + i * (112 / Math.max(1, arr.length - 1))).toFixed(1)},${(24 - (v / mx) * 18).toFixed(1)}`;
+        }).join(" ");
+        waveEl.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+            <span class="kpi-label" style="margin:0;">INTENSITY</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#E3444D;">${Math.round(setPct * 100)}%</span>
+          </div>
+          <svg viewBox="0 0 120 28" width="100%" height="26" preserveAspectRatio="none">
+            <polyline points="${wPts}" fill="none" stroke="#E3444D" stroke-width="1.6" stroke-linejoin="round" />
+          </svg>
+        `;
+      }
+    }
+
+    // 7. Set Target big hero number
+    const bigTargetEl = document.getElementById("dash-target-big");
+    if (bigTargetEl) {
+      const pct = Math.min(100, Math.round((totalSets / targetSets) * 100));
+      bigTargetEl.innerHTML = `${totalSets} <span class="muted-note">SETS (${pct}%)</span>`;
+    }
+
+    // 8. 7-day volume sparkline
+    const sparkEl = document.getElementById("dash-week-sparkline");
+    if (sparkEl) {
+      const now = new Date();
+      const dayOfWeek = (now.getDay() + 6) % 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dayOfWeek);
+      monday.setHours(0, 0, 0, 0);
+
+      const dayVols = Array.from({ length: 7 }, (_, idx) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + idx);
+        const k = toLocalDateKey(d);
+        return recent7
+          .filter((w) => toLocalDateKey(w.endedAt) === k)
+          .reduce((sum, w) => sum + w.exercises.reduce((es, ex) => es + ex.sets.reduce((ss, s) => ss + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0), 0), 0);
+      });
+      const maxV = Math.max(1, ...dayVols);
+      const pts = dayVols.map((v, i) => [10 + i * 36.6, 36 - (v / maxV) * 26]);
+      const poly = pts.map((pt) => `${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join(" ");
+      const area = `10,40 ${poly} 229.6,40`;
+      const dots = pts.map((pt, i) => dayVols[i] > 0 ? `<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="2.6" fill="#E3444D" />` : "").join("");
+      sparkEl.innerHTML = `
+        <svg viewBox="0 0 240 42" preserveAspectRatio="none">
+          <polygon points="${area}" fill="rgba(197, 47, 58, 0.14)" />
+          <polyline points="${poly}" fill="none" stroke="#C52F3A" stroke-width="1.8" stroke-linejoin="round" />
+          ${dots}
+        </svg>
+      `;
+    }
+  }
+
   function renderDashboard() {
     const profile = getActiveProfile();
     document.getElementById("dash-greeting").textContent = `Hey, ${profile.name}`;
@@ -2675,6 +2882,7 @@
       });
     }
 
+    renderDashboardBento(allWorkouts, recent7, stats7, trainedMuscles, totalSets);
     applyDashboardWidgetPrefs();
 
     const recScroll = document.getElementById("dash-recommendations");
@@ -4635,8 +4843,91 @@
     });
   }
 
+  function initAmbientBackground() {
+    const canvas = document.getElementById("bg-canvas");
+    if (!canvas) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let w = 0, h = 0;
+    const nodes = Array.from({ length: 26 }, (_, i) => ({
+      x: Math.random(),
+      y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.00022,
+      vy: (Math.random() - 0.5) * 0.00022,
+      red: i % 5 === 0
+    }));
+
+    const resize = () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    let offset = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+
+      // Subtle drifting Swiss technical grid
+      const step = 48;
+      offset = (offset + 0.12) % step;
+      ctx.strokeStyle = "rgba(43, 49, 53, 0.22)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = offset; x < w; x += step) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+      for (let y = offset; y < h; y += step) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+
+      // Telemetry nodes & subtle proximity links
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        n.x = (n.x + n.vx + 1) % 1;
+        n.y = (n.y + n.vy + 1) % 1;
+        const px = n.x * w;
+        const py = n.y * h;
+
+        for (let j = i + 1; j < nodes.length; j++) {
+          const m = nodes[j];
+          const dx = (n.x - m.x) * w;
+          const dy = (n.y - m.y) * h;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 150) {
+            ctx.strokeStyle = (n.red || m.red)
+              ? `rgba(197, 47, 58, ${(1 - dist / 150) * 0.18})`
+              : `rgba(160, 167, 170, ${(1 - dist / 150) * 0.09})`;
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(m.x * w, m.y * h);
+            ctx.stroke();
+          }
+        }
+
+        ctx.fillStyle = n.red ? "rgba(227, 68, 77, 0.55)" : "rgba(160, 167, 170, 0.35)";
+        ctx.beginPath();
+        ctx.arc(px, py, n.red ? 2 : 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (!reduce && !document.hidden) requestAnimationFrame(draw);
+    };
+
+    draw();
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && !reduce) requestAnimationFrame(draw);
+    });
+  }
+
   /* ---------------- INIT ---------------- */
   registerServiceWorker();
+  initAmbientBackground();
   renderHeader();
   bindEvents();
   switchView("dashboard");

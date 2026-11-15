@@ -15,6 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
   <div id="app">
     <!-- Top Header -->
     <header class="top-bar">
@@ -26,7 +27,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.0</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.3</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -56,56 +57,145 @@
           </div>
         </div>
 
-        <!-- PRESET 1: OVERVIEW -->
+        <!-- PRESET 1: OVERVIEW (BENTO GRID) -->
         <div id="dash-preset-overview" class="dash-preset active">
           <div id="dash-recovery-banner" class="card recovery-banner hidden"></div>
-          <div class="dash-grid">
-            <div class="card-stack">
-              <div class="card" data-dash-widget="session">
-                <div class="hero-top">
-                  <div>
-                    <span class="eyebrow">Session</span>
-                    <h2 id="dash-session-heading">Ready to train</h2>
-                  </div>
-                  <button id="btn-dash-start" class="btn btn-primary" type="button">+ Start Workout</button>
+
+          <!-- ROW 1: HERO ANATOMY + WEEKLY STIMULUS CHART -->
+          <div class="bento-row-top">
+            <div class="bento-panel bento-hero" data-dash-widget="session">
+              <div class="bento-hero-left">
+                <div>
+                  <span class="eyebrow">01 // BIOMETRIC SCAN</span>
+                  <h2 class="bento-title">Muscle Overview</h2>
                 </div>
-                <div class="kpi-grid" data-dash-widget="kpis">
-                  <div class="kpi-box">
-                    <span class="kpi-label">7D Sessions</span>
-                    <strong id="kpi-workouts-7d" class="kpi-value">0</strong>
-                  </div>
-                  <div class="kpi-box">
+                <div class="bento-stat-pair" data-dash-widget="kpis">
+                  <div class="bento-stat">
                     <span class="kpi-label">7D Volume</span>
-                    <strong id="kpi-volume-7d" class="kpi-value">0 kg</strong>
+                    <strong id="kpi-volume-7d" class="bento-num">0 kg</strong>
                   </div>
-                  <div class="kpi-box">
-                    <span class="kpi-label">7D Sets</span>
-                    <strong id="kpi-sets-7d" class="kpi-value">0</strong>
+                  <div class="bento-stat">
+                    <span class="kpi-label">7D Sessions</span>
+                    <strong id="kpi-workouts-7d" class="bento-num">0</strong>
                   </div>
                 </div>
               </div>
-              <div id="dash-streak-card" class="card" data-dash-widget="streak"></div>
+
+              <button class="bento-hero-scan" type="button" data-nav="anatomy" aria-label="Open full Muscle Overview">
+                <svg id="dash-hero-scan-svg" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
+                  <g fill="#161A1E" stroke="#2B3135" stroke-width="1.2">
+                    <circle cx="100" cy="24" r="14" />
+                    <path d="M78 44 C60 48, 48 62, 44 92 L34 150 L48 154 L58 100 L64 148 L72 246 L90 246 L96 158 L104 158 L110 246 L128 246 L136 148 L142 100 L152 154 L166 150 L156 92 C152 62, 140 48, 122 44 Z" />
+                  </g>
+                  <g class="dash-mini-muscle" data-mini-muscle="chest" fill="#23282D">
+                    <path d="M72 62 C82 58, 96 60, 99 68 L99 84 C88 86, 74 84, 70 76 Z" />
+                    <path d="M128 62 C118 58, 104 60, 101 68 L101 84 C112 86, 126 84, 130 76 Z" />
+                  </g>
+                  <g class="dash-mini-muscle" data-mini-muscle="front_delts" fill="#23282D">
+                    <ellipse cx="64" cy="64" rx="9" ry="12" />
+                    <ellipse cx="136" cy="64" rx="9" ry="12" />
+                  </g>
+                  <g class="dash-mini-muscle" data-mini-muscle="abs" fill="#23282D">
+                    <rect x="88" y="88" width="24" height="42" rx="4" />
+                  </g>
+                  <g class="dash-mini-muscle" data-mini-muscle="biceps" fill="#23282D">
+                    <ellipse cx="56" cy="96" rx="6" ry="15" />
+                    <ellipse cx="144" cy="96" rx="6" ry="15" />
+                  </g>
+                  <g class="dash-mini-muscle" data-mini-muscle="quads" fill="#23282D">
+                    <path d="M72 154 L94 154 L90 206 L74 206 Z" />
+                    <path d="M106 154 L128 154 L126 206 L110 206 Z" />
+                  </g>
+                  <!-- Biometric scan rings & callout leader lines -->
+                  <g fill="none" stroke="rgba(227, 68, 77, 0.25)" stroke-width="0.8">
+                    <circle cx="100" cy="115" r="72" stroke-dasharray="3 4" />
+                    <line x1="16" y1="72" x2="68" y2="72" />
+                    <line x1="132" y1="108" x2="184" y2="108" />
+                    <line x1="18" y1="176" x2="72" y2="176" />
+                  </g>
+                  <g fill="#697277" font-family="IBM Plex Mono, monospace" font-size="7.5">
+                    <text x="16" y="69">PEC</text>
+                    <text x="164" y="105">CORE</text>
+                    <text x="18" y="173">QUAD</text>
+                  </g>
+                  <!-- Subtle biometric joint nodes -->
+                  <g fill="#E3444D" opacity="0.85">
+                    <circle cx="64" cy="64" r="2.2" />
+                    <circle cx="136" cy="64" r="2.2" />
+                    <circle cx="56" cy="108" r="1.8" />
+                    <circle cx="144" cy="108" r="1.8" />
+                    <circle cx="82" cy="198" r="2" />
+                    <circle cx="118" cy="198" r="2" />
+                  </g>
+                </svg>
+                <span class="bento-scan-hint">Open Full Scan &rarr;</span>
+              </button>
+
+              <div class="bento-hero-right">
+                <div id="dash-hero-wave" class="bento-hero-wave"></div>
+                <div class="bento-stat">
+                  <span class="kpi-label">7D Sets</span>
+                  <strong id="kpi-sets-7d" class="bento-num">0</strong>
+                </div>
+                <div id="dash-streak-card" class="bento-stat" data-dash-widget="streak"></div>
+                <button class="btn btn-secondary btn-sm" type="button" data-nav="anatomy" id="dash-stimulus-summary">Open Map</button>
+              </div>
             </div>
 
-            <div class="card-stack">
-              <div id="dash-focus-banner" class="card focus-banner" data-dash-widget="recommended"></div>
-              <div class="card-stack" data-dash-widget="quick_links">
-                <button class="card quick-link-row" type="button" data-nav="anatomy">
-                  <div>
-                    <span class="eyebrow">Muscle Stimulus</span>
-                    <strong id="dash-stimulus-summary">View 7-day anatomical heatmap</strong>
-                  </div>
-                  <span class="muted-note">Map &rarr;</span>
-                </button>
-                <button class="card quick-link-row" type="button" data-nav="analytics">
-                  <div>
-                    <span class="eyebrow">Personal Records</span>
-                    <strong id="dash-pr-summary">View 1RM progression &amp; charts</strong>
-                  </div>
-                  <span class="muted-note">Stats &rarr;</span>
-                </button>
+            <div class="bento-panel bento-chart" data-dash-widget="quick_links">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">02 // 7D DISTRIBUTION</span>
+                  <h3>Stimulus Periodic</h3>
+                </div>
+                <button class="link-btn" type="button" data-nav="analytics" id="dash-pr-summary">Stats &rarr;</button>
               </div>
-              <div id="dash-recent-overview" class="card" data-dash-widget="recent"></div>
+              <div class="bento-chart-body">
+                <div id="dash-bento-bars" class="bento-bars-wrap"></div>
+                <div id="dash-chart-meta" class="bento-chart-meta"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ROW 2: 3-COLUMN TELEMETRY STRIP -->
+          <div class="bento-row-bottom">
+            <div class="bento-panel bento-session-card" data-dash-widget="recommended">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">03 // TRAINING</span>
+                  <h3 id="dash-session-heading">Ready to train</h3>
+                </div>
+                <button id="btn-dash-start" class="btn btn-primary btn-sm" type="button">+ Start</button>
+              </div>
+              <div class="bento-session-body">
+                <div id="dash-session-ring" class="bento-ring-wrap"></div>
+                <div id="dash-focus-banner" class="bento-focus-compact"></div>
+              </div>
+            </div>
+
+            <div class="bento-panel bento-meter-card">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">04 // WEEKLY LOAD</span>
+                  <h3>Set Target</h3>
+                </div>
+                <span id="dash-target-fraction" class="muted-note">0 / 40 sets</span>
+              </div>
+              <div id="dash-target-big" class="bento-target-big">0 <span class="muted-note">SETS LOGGED</span></div>
+              <div id="dash-target-bars" class="bento-seg-meter"></div>
+            </div>
+
+            <div class="bento-panel bento-activity-card" data-dash-widget="recent">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">05 // ACTIVITY TRACKING</span>
+                  <h3>This Week</h3>
+                </div>
+                <button class="link-btn" type="button" data-nav="analytics">Calendar &rarr;</button>
+              </div>
+              <div id="dash-week-strip" class="bento-week-strip"></div>
+              <div id="dash-week-sparkline" class="bento-sparkline-wrap"></div>
+              <div id="dash-recent-overview" class="bento-recent-compact"></div>
             </div>
           </div>
         </div>
@@ -586,10 +676,6 @@
 
     <!-- Iron Rail (Desktop) & Bottom Navigation (Mobile) -->
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <div class="rail-brand" aria-hidden="true">
-        <span class="rail-mark">M</span>
-        <span class="rail-code">S01</span>
-      </div>
       <button class="nav-btn active" type="button" data-nav="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square">
           <rect x="3" y="3" width="8" height="8"></rect>
