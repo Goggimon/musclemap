@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
   <div id="app">
@@ -25,7 +26,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v4.1</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v5.0</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -876,7 +877,9 @@
           <button class="rest-btn" type="button" data-cam-preset="side">Side</button>
           <button class="rest-btn" type="button" data-cam-preset="back">Back</button>
           <button id="btn-form-guides" class="rest-btn active" type="button">Guides: ON</button>
+          <button id="btn-form-mistake" class="rest-btn" type="button">Mistake: OFF</button>
         </div>
+        <div id="form-mistake-note" class="muted-note hidden" style="color:#f87171;font-size:12px;margin-top:4px;"></div>
         <div class="form-controls">
           <button id="btn-form-play" class="btn btn-primary btn-sm" type="button">Pause</button>
           <button id="btn-form-start" class="btn btn-secondary btn-sm" type="button">Start Pose</button>

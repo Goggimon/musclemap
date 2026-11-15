@@ -1,10 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v4.1";
+  const APP_VERSION = "v5.0";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v5.0",
+      date: "2026-11-15",
+      items: [
+        "Upgraded 3D Form Viewer to a full .glb skinned human model (Xbot.glb via GLTFLoader) with Mixamo bone-driven exercise animations and instant procedural fallback",
+        "Added peak-flex contraction pulsing on primary and secondary muscles, PCFSoftShadowMap studio lighting, Olympic barbell collars, weight-stack selector pins, and split V-ropes",
+        "Added live 3D joint-angle arcs at key joints and a Mistake: OFF/ON toggle showing common form errors with coaching explanations"
+      ]
+    },
     {
       version: "v4.1",
       date: "2026-11-15",
@@ -1373,11 +1382,23 @@
         guidesBtn.classList.toggle("active", on);
         guidesBtn.textContent = on ? "Guides: ON" : "Guides: OFF";
       }
+      const mistakeBtn = document.getElementById("btn-form-mistake");
+      const mistakeNote = document.getElementById("form-mistake-note");
+      if (mistakeBtn) {
+        const mOn = window.MuscleMap3D.getMistakeEnabled ? window.MuscleMap3D.getMistakeEnabled() : false;
+        mistakeBtn.classList.toggle("active", mOn);
+        mistakeBtn.textContent = mOn ? "Mistake: ON" : "Mistake: OFF";
+      }
+      if (mistakeNote) {
+        mistakeNote.textContent = "";
+        mistakeNote.classList.add("hidden");
+      }
       window.MuscleMap3D.resize();
       window.MuscleMap3D.setPhase(0);
     } else {
       wrap3d?.classList.add("hidden");
       camBar?.classList.add("hidden");
+      document.getElementById("form-mistake-note")?.classList.add("hidden");
       svg2d?.classList.remove("hidden");
       renderStickmanFrame(activeFormRig, 0);
     }
@@ -1741,7 +1762,7 @@
       jumpLabel: "Open Library",
       items: [
         ["Search & Muscle Filters", "Filter all exercises by muscle group or search by name and equipment."],
-        ["360° 3D Form Viewer", "Tap Form on any exercise to orbit 360° around a 3D model, switch camera presets (45°/Front/Side/Back), toggle alignment guides, and read form cues."],
+        ["360° 3D Form Viewer", "Tap Form on any exercise to orbit 360° around a full .glb 3D model, switch camera presets (45°/Front/Side/Back), toggle alignment guides, joint-angle arcs, and Mistake: ON/OFF form comparisons."],
         ["Tier 1–4 Weight Recommendations", "When your body weight is entered in Body Info, tap Tiers or Form to see Beginner–Maximum weights and 1-tap Use."],
         ["+ Custom Exercise", "Add your own exercises with primary (1.0x) and secondary (0.5x) muscle tags."]
       ]
@@ -1766,7 +1787,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v4.1)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v5.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -3745,6 +3766,18 @@
       const on = window.MuscleMap3D.toggleGuides();
       e.currentTarget.classList.toggle("active", on);
       e.currentTarget.textContent = on ? "Guides: ON" : "Guides: OFF";
+    });
+    document.getElementById("btn-form-mistake")?.addEventListener("click", (e) => {
+      if (!using3DForm || !window.MuscleMap3D || !window.MuscleMap3D.toggleMistake) return;
+      const on = window.MuscleMap3D.toggleMistake();
+      e.currentTarget.classList.toggle("active", on);
+      e.currentTarget.textContent = on ? "Mistake: ON" : "Mistake: OFF";
+      const noteEl = document.getElementById("form-mistake-note");
+      if (noteEl) {
+        const note = on && window.MuscleMap3D.getMistakeNote ? window.MuscleMap3D.getMistakeNote() : "";
+        noteEl.textContent = note;
+        noteEl.classList.toggle("hidden", !on || !note);
+      }
     });
     window.addEventListener("resize", () => {
       if (using3DForm && window.MuscleMap3D) window.MuscleMap3D.resize();

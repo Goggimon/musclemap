@@ -1,8 +1,10 @@
 (() => {
   "use strict";
 
-  // 3D Biomechanical Pose, Muscle-Intensity & Machine Engine for MUSCLEMAP (Three.js + OrbitControls)
+  // 3D Skinned GLB + Procedural Fallback Engine for MUSCLEMAP (Three.js + OrbitControls + GLTFLoader)
   // Coordinate system: meters, Y-up, floor at y = 0, athlete faces +Z by default.
+
+  const GLB_URL = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r147/examples/models/gltf/Xbot.glb";
 
   const JOINT_KEYS = [
     "pelvis", "lumbar", "chest", "neck", "head",
@@ -91,13 +93,9 @@
     return { ...base, ...overrides };
   }
 
-  // track: "midWr" | "bothWr" | "wrR" | "anBoth" | "pelvis" | "barSquat"
-  // facing: 1 = normal (+Z), -1 = prone/inverted facing
   const RIGS_3D = {
     bench_press: {
-      equip: "bench_flat",
-      prop: "bar",
-      track: "midWr",
+      equip: "bench_flat", prop: "bar", track: "midWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSupinePose({
         chest: [0, 0.59, -0.24],
         elL: [-0.34, 0.48, -0.16], wrL: [-0.32, 0.69, -0.20],
@@ -110,9 +108,7 @@
       })
     },
     incline_press: {
-      equip: "bench_incline",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "bench_incline", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         pelvis: [0, 0.50, 0.06], lumbar: [0, 0.65, -0.06], chest: [0, 0.86, -0.22],
         neck: [0, 0.98, -0.30], head: [0, 1.10, -0.36],
@@ -127,9 +123,7 @@
       })
     },
     chest_fly: {
-      equip: "bench_flat",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "bench_flat", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSupinePose({
         elL: [-0.46, 0.50, -0.24], wrL: [-0.66, 0.56, -0.24],
         elR: [0.46, 0.50, -0.24],  wrR: [0.66, 0.56, -0.24]
@@ -140,9 +134,7 @@
       })
     },
     db_pullover: {
-      equip: "bench_flat",
-      prop: "dumbbell_single",
-      track: "midWr",
+      equip: "bench_flat", prop: "dumbbell_single", track: "midWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSupinePose({
         shL: [-0.18, 0.55, -0.26], elL: [-0.12, 0.58, -0.54], wrL: [-0.06, 0.44, -0.76],
         shR: [0.18, 0.55, -0.26],  elR: [0.12, 0.58, -0.54],  wrR: [0.06, 0.44, -0.76]
@@ -153,9 +145,7 @@
       })
     },
     cable_fly: {
-      equip: "cable_dual",
-      prop: "cable_handles",
-      track: "bothWr",
+      equip: "cable_dual", prop: "cable_handles", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         lumbar: [0, 1.10, 0.03], chest: [0, 1.33, 0.06], neck: [0, 1.47, 0.07], head: [0, 1.61, 0.09],
         shL: [-0.20, 1.36, 0.06], elL: [-0.46, 1.28, -0.02], wrL: [-0.64, 1.24, -0.08],
@@ -172,9 +162,7 @@
       })
     },
     pec_deck: {
-      equip: "pec_deck_machine",
-      prop: "none",
-      track: "bothWr",
+      equip: "pec_deck_machine", prop: "none", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         elL: [-0.46, 0.96, -0.02], wrL: [-0.46, 1.16, 0.04],
         elR: [0.46, 0.96, -0.02],  wrR: [0.46, 1.16, 0.04]
@@ -185,9 +173,7 @@
       })
     },
     reverse_pec_deck: {
-      equip: "pec_deck_machine",
-      prop: "none",
-      track: "bothWr",
+      equip: "pec_deck_machine", prop: "none", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makeSeatedPose({
         elL: [-0.14, 0.98, 0.26], wrL: [-0.08, 0.98, 0.48],
         elR: [0.14, 0.98, 0.26],  wrR: [0.08, 0.98, 0.48]
@@ -198,9 +184,7 @@
       })
     },
     machine_press: {
-      equip: "chest_press_machine",
-      prop: "none",
-      track: "bothWr",
+      equip: "chest_press_machine", prop: "none", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         elL: [-0.34, 0.92, -0.14], wrL: [-0.28, 0.96, 0.12],
         elR: [0.34, 0.92, -0.14],  wrR: [0.28, 0.96, 0.12]
@@ -211,9 +195,7 @@
       })
     },
     dips: {
-      equip: "dip_bars",
-      prop: "none",
-      track: "pelvis",
+      equip: "dip_bars", prop: "none", track: "pelvis", angleType: "elbow", mistakeType: "press_flare",
       start: makePose({
         pelvis: [0, 1.12, 0], lumbar: [0, 1.29, 0.04], chest: [0, 1.52, 0.08],
         neck: [0, 1.65, 0.10], head: [0, 1.78, 0.12],
@@ -232,10 +214,7 @@
       })
     },
     pushup: {
-      equip: "floor",
-      prop: "none",
-      track: "pelvis",
-      prone: true,
+      equip: "floor", prop: "none", track: "pelvis", angleType: "elbow", mistakeType: "press_flare", prone: true,
       start: makePose({
         pelvis: [0, 0.34, -0.08], lumbar: [0, 0.40, 0.08], chest: [0, 0.48, 0.28],
         neck: [0, 0.52, 0.40], head: [0, 0.56, 0.54],
@@ -254,9 +233,7 @@
       })
     },
     ohp: {
-      equip: "floor",
-      prop: "bar",
-      track: "midWr",
+      equip: "floor", prop: "bar", track: "midWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         elL: [-0.24, 1.18, 0.14], wrL: [-0.26, 1.42, 0.12],
         elR: [0.24, 1.18, 0.14],  wrR: [0.26, 1.42, 0.12]
@@ -268,9 +245,7 @@
       })
     },
     seated_ohp: {
-      equip: "machine_seat",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "machine_seat", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         elL: [-0.30, 0.84, 0.04], wrL: [-0.30, 1.08, 0.04],
         elR: [0.30, 0.84, 0.04],  wrR: [0.30, 1.08, 0.04]
@@ -281,9 +256,7 @@
       })
     },
     shoulder_machine: {
-      equip: "shoulder_press_machine",
-      prop: "none",
-      track: "bothWr",
+      equip: "shoulder_press_machine", prop: "none", track: "bothWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         elL: [-0.32, 0.84, 0.04], wrL: [-0.32, 1.08, 0.04],
         elR: [0.32, 0.84, 0.04],  wrR: [0.32, 1.08, 0.04]
@@ -294,9 +267,7 @@
       })
     },
     lat_raise: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "floor", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         elL: [-0.24, 1.12, 0.04], wrL: [-0.22, 0.88, 0.08],
         elR: [0.24, 1.12, 0.04],  wrR: [0.22, 0.88, 0.08]
@@ -307,9 +278,7 @@
       })
     },
     front_raise: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "floor", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         elL: [-0.22, 1.12, 0.04], wrL: [-0.20, 0.88, 0.10],
         elR: [0.22, 1.12, 0.04],  wrR: [0.20, 0.88, 0.10]
@@ -320,9 +289,7 @@
       })
     },
     rear_delt_fly: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "floor", prop: "dumbbell_pair", track: "bothWr", angleType: "hip", mistakeType: "round_back",
       start: makePose({
         pelvis: [0, 0.88, -0.06], lumbar: [0, 0.94, 0.10], chest: [0, 1.00, 0.30],
         neck: [0, 1.03, 0.42], head: [0, 1.06, 0.54],
@@ -339,9 +306,7 @@
       })
     },
     face_pull: {
-      equip: "cable_high",
-      prop: "rope",
-      track: "bothWr",
+      equip: "cable_high", prop: "rope", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         shL: [-0.20, 1.38, 0], elL: [-0.16, 1.40, 0.26], wrL: [-0.08, 1.44, 0.48],
         shR: [0.20, 1.38, 0],  elR: [0.16, 1.40, 0.26],  wrR: [0.08, 1.44, 0.48],
@@ -356,9 +321,7 @@
       })
     },
     pullup: {
-      equip: "pullup_bar",
-      prop: "none",
-      track: "pelvis",
+      equip: "pullup_bar", prop: "none", track: "pelvis", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         pelvis: [0, 0.92, 0], lumbar: [0, 1.10, 0], chest: [0, 1.34, 0],
         neck: [0, 1.48, 0], head: [0, 1.62, 0.02],
@@ -377,9 +340,7 @@
       })
     },
     lat_pulldown: {
-      equip: "lat_machine",
-      prop: "lat_bar",
-      track: "midWr",
+      equip: "lat_machine", prop: "lat_bar", track: "midWr", angleType: "elbow", mistakeType: "swing",
       start: makeSeatedPose({
         chest: [0, 0.96, -0.08], neck: [0, 1.10, -0.10], head: [0, 1.24, -0.10],
         shL: [-0.20, 1.02, -0.08], elL: [-0.28, 1.28, -0.04], wrL: [-0.32, 1.54, 0.0],
@@ -392,9 +353,7 @@
       })
     },
     bent_row: {
-      equip: "floor",
-      prop: "bar",
-      track: "midWr",
+      equip: "floor", prop: "bar", track: "midWr", angleType: "hip", mistakeType: "round_back",
       start: makePose({
         pelvis: [0, 0.88, -0.06], lumbar: [0, 1.00, 0.08], chest: [0, 1.14, 0.24],
         neck: [0, 1.22, 0.34], head: [0, 1.30, 0.44],
@@ -411,10 +370,7 @@
       })
     },
     single_arm_row: {
-      equip: "bench_flat",
-      prop: "dumbbell_right",
-      track: "wrR",
-      prone: true,
+      equip: "bench_flat", prop: "dumbbell_right", track: "wrR", angleType: "elbow", mistakeType: "round_back", prone: true,
       start: makePose({
         pelvis: [0.02, 0.78, 0.20], lumbar: [0.02, 0.80, 0.02], chest: [0.02, 0.82, -0.18],
         neck: [0.02, 0.84, -0.30], head: [0.02, 0.86, -0.44],
@@ -433,10 +389,7 @@
       })
     },
     incline_row: {
-      equip: "bench_incline",
-      prop: "dumbbell_pair",
-      track: "bothWr",
-      prone: true,
+      equip: "bench_incline", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "round_back", prone: true,
       start: makeSeatedPose({
         pelvis: [0, 0.54, 0.06], lumbar: [0, 0.68, -0.04], chest: [0, 0.88, -0.20],
         neck: [0, 0.98, -0.28], head: [0, 1.08, -0.34],
@@ -451,9 +404,7 @@
       })
     },
     seated_row: {
-      equip: "cable_row_bench",
-      prop: "v_bar",
-      track: "midWr",
+      equip: "cable_row_bench", prop: "v_bar", track: "midWr", angleType: "elbow", mistakeType: "round_back",
       start: makeSeatedPose({
         pelvis: [0, 0.46, -0.12], lumbar: [0, 0.64, -0.10], chest: [0, 0.88, -0.08],
         neck: [0, 1.02, -0.08], head: [0, 1.16, -0.06],
@@ -472,9 +423,7 @@
       })
     },
     row_machine: {
-      equip: "row_machine",
-      prop: "none",
-      track: "bothWr",
+      equip: "row_machine", prop: "none", track: "bothWr", angleType: "elbow", mistakeType: "round_back",
       start: makeSeatedPose({
         elL: [-0.22, 0.90, 0.22], wrL: [-0.20, 0.90, 0.46],
         elR: [0.22, 0.90, 0.22],  wrR: [0.20, 0.90, 0.46]
@@ -485,9 +434,7 @@
       })
     },
     shrug: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "floor", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         shL: [-0.20, 1.36, 0], elL: [-0.24, 1.10, 0.02], wrL: [-0.24, 0.84, 0.04],
         shR: [0.20, 1.36, 0],  elR: [0.24, 1.10, 0.02],  wrR: [0.24, 0.84, 0.04]
@@ -498,9 +445,7 @@
       })
     },
     curl: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "floor", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         elL: [-0.22, 1.12, 0.02], wrL: [-0.22, 0.86, 0.06],
         elR: [0.22, 1.12, 0.02],  wrR: [0.22, 0.86, 0.06]
@@ -511,9 +456,7 @@
       })
     },
     incline_curl: {
-      equip: "bench_incline",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "bench_incline", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makeSeatedPose({
         pelvis: [0, 0.50, 0.06], lumbar: [0, 0.65, -0.06], chest: [0, 0.86, -0.22],
         neck: [0, 0.98, -0.30], head: [0, 1.10, -0.36],
@@ -528,9 +471,7 @@
       })
     },
     preacher_curl: {
-      equip: "preacher_machine",
-      prop: "dumbbell_pair",
-      track: "bothWr",
+      equip: "preacher_machine", prop: "dumbbell_pair", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makeSeatedPose({
         chest: [0, 0.94, 0.06], neck: [0, 1.08, 0.08], head: [0, 1.20, 0.12],
         shL: [-0.20, 0.96, 0.08], elL: [-0.20, 0.78, 0.28], wrL: [-0.20, 0.62, 0.44],
@@ -543,9 +484,7 @@
       })
     },
     tricep_pushdown: {
-      equip: "cable_high",
-      prop: "rope",
-      track: "bothWr",
+      equip: "cable_high", prop: "rope", track: "bothWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         chest: [0, 1.32, 0.04], neck: [0, 1.46, 0.06], head: [0, 1.60, 0.08],
         shL: [-0.20, 1.34, 0.04], elL: [-0.18, 1.10, 0.06], wrL: [-0.10, 1.22, 0.26],
@@ -558,9 +497,7 @@
       })
     },
     tricep_overhead: {
-      equip: "machine_seat",
-      prop: "dumbbell_single",
-      track: "midWr",
+      equip: "machine_seat", prop: "dumbbell_single", track: "midWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSeatedPose({
         elL: [-0.12, 1.26, -0.02], wrL: [-0.06, 1.08, -0.20],
         elR: [0.12, 1.26, -0.02],  wrR: [0.06, 1.08, -0.20]
@@ -571,9 +508,7 @@
       })
     },
     skullcrusher: {
-      equip: "bench_flat",
-      prop: "bar",
-      track: "midWr",
+      equip: "bench_flat", prop: "bar", track: "midWr", angleType: "elbow", mistakeType: "press_flare",
       start: makeSupinePose({
         elL: [-0.18, 0.82, -0.34], wrL: [-0.18, 0.72, -0.56],
         elR: [0.18, 0.82, -0.34],  wrR: [0.18, 0.72, -0.56]
@@ -584,10 +519,7 @@
       })
     },
     kickback: {
-      equip: "bench_flat",
-      prop: "dumbbell_right",
-      track: "wrR",
-      prone: true,
+      equip: "bench_flat", prop: "dumbbell_right", track: "wrR", angleType: "elbow", mistakeType: "round_back", prone: true,
       start: makePose({
         pelvis: [0.02, 0.78, 0.20], lumbar: [0.02, 0.80, 0.02], chest: [0.02, 0.82, -0.18],
         neck: [0.02, 0.84, -0.30], head: [0.02, 0.86, -0.44],
@@ -606,9 +538,7 @@
       })
     },
     squat: {
-      equip: "squat_rack",
-      prop: "bar",
-      track: "midWr",
+      equip: "squat_rack", prop: "bar", track: "midWr", angleType: "knee", mistakeType: "knee_valgus",
       start: makePose({
         shL: [-0.21, 1.38, 0], elL: [-0.30, 1.20, -0.06], wrL: [-0.30, 1.40, -0.06],
         shR: [0.21, 1.38, 0],  elR: [0.30, 1.20, -0.06],  wrR: [0.30, 1.40, -0.06],
@@ -625,9 +555,7 @@
       })
     },
     lunge: {
-      equip: "floor",
-      prop: "dumbbell_pair",
-      track: "pelvis",
+      equip: "floor", prop: "dumbbell_pair", track: "pelvis", angleType: "knee", mistakeType: "knee_valgus",
       start: makePose({
         knL: [-0.14, 0.48, 0.22], anL: [-0.14, 0.07, 0.22], toeL: [-0.14, 0.03, 0.36],
         knR: [0.14, 0.48, -0.22], anR: [0.14, 0.07, -0.26], toeR: [0.14, 0.03, -0.14]
@@ -642,9 +570,7 @@
       })
     },
     leg_press: {
-      equip: "leg_press",
-      prop: "none",
-      track: "anBoth",
+      equip: "leg_press", prop: "none", track: "anBoth", angleType: "knee", mistakeType: "knee_valgus",
       start: makeSeatedPose({
         pelvis: [0, 0.44, -0.06], lumbar: [0, 0.56, -0.20], chest: [0, 0.74, -0.36],
         neck: [0, 0.84, -0.44], head: [0, 0.96, -0.50],
@@ -663,9 +589,7 @@
       })
     },
     leg_ext: {
-      equip: "leg_ext_machine",
-      prop: "none",
-      track: "anBoth",
+      equip: "leg_ext_machine", prop: "none", track: "anBoth", angleType: "knee", mistakeType: "swing",
       start: makeSeatedPose({
         knL: [-0.14, 0.48, 0.42], anL: [-0.14, 0.12, 0.42], toeL: [-0.14, 0.08, 0.54],
         knR: [0.14, 0.48, 0.42],  anR: [0.14, 0.12, 0.42],  toeR: [0.14, 0.08, 0.54]
@@ -676,9 +600,7 @@
       })
     },
     leg_curl: {
-      equip: "leg_curl_machine",
-      prop: "none",
-      track: "anBoth",
+      equip: "leg_curl_machine", prop: "none", track: "anBoth", angleType: "knee", mistakeType: "swing",
       start: makeSeatedPose({
         knL: [-0.14, 0.48, 0.42], anL: [-0.14, 0.46, 0.80], toeL: [-0.14, 0.56, 0.82],
         knR: [0.14, 0.48, 0.42],  anR: [0.14, 0.46, 0.80],  toeR: [0.14, 0.56, 0.82]
@@ -689,10 +611,7 @@
       })
     },
     lying_curl: {
-      equip: "lying_curl_machine",
-      prop: "none",
-      track: "anBoth",
-      prone: true,
+      equip: "lying_curl_machine", prop: "none", track: "anBoth", angleType: "knee", mistakeType: "swing", prone: true,
       start: makeSupinePose({
         pelvis: [0, 0.52, 0.16], lumbar: [0, 0.53, 0.0], chest: [0, 0.55, -0.24],
         neck: [0, 0.54, -0.38], head: [0, 0.54, -0.52],
@@ -711,9 +630,7 @@
       })
     },
     rdl: {
-      equip: "floor",
-      prop: "bar",
-      track: "midWr",
+      equip: "floor", prop: "bar", track: "midWr", angleType: "hip", mistakeType: "round_back",
       start: makePose({
         wrL: [-0.24, 0.84, 0.12], wrR: [0.24, 0.84, 0.12]
       }),
@@ -727,9 +644,7 @@
       })
     },
     hip_thrust: {
-      equip: "bench_flat",
-      prop: "bar",
-      track: "pelvis",
+      equip: "bench_flat", prop: "bar", track: "pelvis", angleType: "hip", mistakeType: "round_back",
       start: makeSupinePose({
         pelvis: [0, 0.22, 0.16], lumbar: [0, 0.34, 0.02], chest: [0, 0.48, -0.14],
         neck: [0, 0.56, -0.24], head: [0, 0.66, -0.32],
@@ -748,9 +663,7 @@
       })
     },
     calf_raise: {
-      equip: "calf_machine",
-      prop: "dumbbell_pair",
-      track: "anBoth",
+      equip: "calf_machine", prop: "dumbbell_pair", track: "anBoth", angleType: "knee", mistakeType: "swing",
       start: makePose({}),
       end: makePose({
         pelvis: [0, 1.00, 0], lumbar: [0, 1.18, 0], chest: [0, 1.42, 0],
@@ -762,9 +675,7 @@
       })
     },
     hanging_raise: {
-      equip: "pullup_bar",
-      prop: "none",
-      track: "anBoth",
+      equip: "pullup_bar", prop: "none", track: "anBoth", angleType: "hip", mistakeType: "swing",
       start: makePose({
         pelvis: [0, 0.92, 0], lumbar: [0, 1.10, 0], chest: [0, 1.34, 0],
         neck: [0, 1.48, 0], head: [0, 1.62, 0.02],
@@ -783,9 +694,7 @@
       })
     },
     cable_crunch: {
-      equip: "cable_high",
-      prop: "rope",
-      track: "bothWr",
+      equip: "cable_high", prop: "rope", track: "bothWr", angleType: "hip", mistakeType: "round_back",
       start: makePose({
         pelvis: [0, 0.48, -0.10], lumbar: [0, 0.66, -0.06], chest: [0, 0.90, -0.02],
         neck: [0, 1.04, 0], head: [0, 1.18, 0.02],
@@ -804,9 +713,7 @@
       })
     },
     woodchop: {
-      equip: "cable_high",
-      prop: "cable_handles",
-      track: "midWr",
+      equip: "cable_high", prop: "cable_handles", track: "midWr", angleType: "elbow", mistakeType: "swing",
       start: makePose({
         chest: [0, 1.34, 0], shL: [-0.14, 1.38, 0.14], shR: [0.14, 1.38, -0.14],
         elL: [-0.28, 1.50, 0.28], wrL: [-0.36, 1.62, 0.44],
@@ -824,23 +731,42 @@
     }
   };
 
+  const MISTAKE_NOTES = {
+    press_flare: "Mistake shown: Elbows flared 90° out and hips/ribcage over-arched — stresses shoulders and reduces pec drive.",
+    round_back: "Mistake shown: Rounded lower back and dropped chest — shifts load onto lumbar discs instead of target muscles.",
+    knee_valgus: "Mistake shown: Knees caving inward (valgus) with shallow depth — stresses knee ligaments and loses glute/quad power.",
+    swing: "Mistake shown: Excessive body swing and shrugged traps — uses momentum instead of isolating the target muscle."
+  };
+
   /* ---------------- THREE.JS VIEWER STATE ---------------- */
   let renderer = null;
   let scene = null;
   let camera = null;
   let controls = null;
-  let rootGroup = null;
+  let procGroup = null;
+  let muscleGroup = null;
   let equipGroup = null;
   let guideGroup = null;
+  let angleGroup = null;
+
   let showGuides = true;
+  let showMistake = false;
+
+  // GLB Skinned Human Model state
+  let glbModel = null;
+  let glbLoading = false;
+  let glbReady = false;
+  let glbBones = {};
+  let glbRest = {};
 
   let parts = null;
+  let muscleMeshes = {};
   let materials = null;
   let muscleMats = {};
   let currentRigKey = "curl";
   let currentPrimaryMuscles = [];
   let currentSecondaryMuscles = [];
-  let currentExerciseId = "";
+  let currentPhase = 0;
   let animEquip = {};
 
   function isAvailable() {
@@ -872,6 +798,8 @@
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x0b0c0e, 1);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(42, 4 / 3, 0.1, 30);
@@ -885,48 +813,174 @@
     controls.maxDistance = 5.2;
     controls.maxPolarAngle = Math.PI * 0.49;
 
-    const amb = new THREE.AmbientLight(0xffffff, 0.58);
-    const key = new THREE.DirectionalLight(0xffffff, 1.0);
-    key.position.set(2.5, 4.2, 3.0);
+    const amb = new THREE.AmbientLight(0xffffff, 0.55);
+    const key = new THREE.DirectionalLight(0xffffff, 1.05);
+    key.position.set(2.4, 4.4, 2.8);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.near = 0.5;
+    key.shadow.camera.far = 12;
+    key.shadow.camera.left = -2;
+    key.shadow.camera.right = 2;
+    key.shadow.camera.top = 2.5;
+    key.shadow.camera.bottom = -1.5;
+    key.shadow.bias = -0.001;
+
     const rim = new THREE.DirectionalLight(0xdc2626, 0.45);
     rim.position.set(-2.5, 2.6, -2.5);
     const fill = new THREE.DirectionalLight(0x9ca3af, 0.42);
     fill.position.set(0, 1.5, -3.0);
     scene.add(amb, key, rim, fill);
 
+    // Studio floor + grid
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(2.2, 48),
+      new THREE.MeshStandardMaterial({ color: 0x0e1015, roughness: 0.88, metalness: 0.08 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.002;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
     const grid = new THREE.GridHelper(3.4, 17, 0x262a34, 0x181b22);
     scene.add(grid);
 
-    rootGroup = new THREE.Group();
+    procGroup = new THREE.Group();
+    muscleGroup = new THREE.Group();
     equipGroup = new THREE.Group();
     guideGroup = new THREE.Group();
-    scene.add(rootGroup, equipGroup, guideGroup);
+    angleGroup = new THREE.Group();
+    scene.add(procGroup, muscleGroup, equipGroup, guideGroup, angleGroup);
 
     buildMaterials();
     buildMannequin();
+    loadGlbHuman();
     resize();
     return true;
+  }
+
+  function loadGlbHuman() {
+    if (glbLoading || glbReady || typeof window.THREE.GLTFLoader === "undefined") return;
+    glbLoading = true;
+    const THREE = window.THREE;
+    const loader = new THREE.GLTFLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(
+      GLB_URL,
+      (gltf) => {
+        const model = gltf.scene;
+        model.updateMatrixWorld(true);
+
+        // Normalize model height to 1.72m
+        const box = new THREE.Box3().setFromObject(model);
+        const h = box.max.y - box.min.y || 1;
+        const scale = 1.72 / h;
+        model.scale.multiplyScalar(scale);
+        model.updateMatrixWorld(true);
+
+        const boneNames = [
+          "mixamorigHips", "mixamorigSpine", "mixamorigSpine1", "mixamorigSpine2",
+          "mixamorigNeck", "mixamorigHead",
+          "mixamorigLeftShoulder", "mixamorigLeftArm", "mixamorigLeftForeArm", "mixamorigLeftHand",
+          "mixamorigRightShoulder", "mixamorigRightArm", "mixamorigRightForeArm", "mixamorigRightHand",
+          "mixamorigLeftUpLeg", "mixamorigLeftLeg", "mixamorigLeftFoot",
+          "mixamorigRightUpLeg", "mixamorigRightLeg", "mixamorigRightFoot"
+        ];
+
+        model.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+            if (obj.material) {
+              const name = (obj.name || "").toLowerCase();
+              obj.material = new THREE.MeshStandardMaterial({
+                color: name.includes("joint") ? 0x374151 : 0x222630,
+                roughness: name.includes("joint") ? 0.4 : 0.55,
+                metalness: 0.25,
+                skinning: Boolean(obj.isSkinnedMesh)
+              });
+            }
+          }
+          if (obj.isBone && boneNames.includes(obj.name)) {
+            glbBones[obj.name] = obj;
+          }
+        });
+
+        // Capture rest-pose world directions & quaternions for exact IK-like orientation
+        const childMap = {
+          mixamorigSpine: "mixamorigSpine2",
+          mixamorigSpine2: "mixamorigNeck",
+          mixamorigNeck: "mixamorigHead",
+          mixamorigLeftArm: "mixamorigLeftForeArm",
+          mixamorigLeftForeArm: "mixamorigLeftHand",
+          mixamorigRightArm: "mixamorigRightForeArm",
+          mixamorigRightForeArm: "mixamorigRightHand",
+          mixamorigLeftUpLeg: "mixamorigLeftLeg",
+          mixamorigLeftLeg: "mixamorigLeftFoot",
+          mixamorigRightUpLeg: "mixamorigRightLeg",
+          mixamorigRightLeg: "mixamorigRightFoot"
+        };
+
+        Object.entries(childMap).forEach(([bName, cName]) => {
+          const b = glbBones[bName];
+          const c = glbBones[cName];
+          if (!b || !c) return;
+          const pB = new THREE.Vector3();
+          const pC = new THREE.Vector3();
+          const qB = new THREE.Quaternion();
+          b.getWorldPosition(pB);
+          c.getWorldPosition(pC);
+          b.getWorldQuaternion(qB);
+          glbRest[bName] = {
+            restDir: pC.sub(pB).normalize(),
+            restWorldQuat: qB.clone()
+          };
+        });
+
+        if (glbBones.mixamorigHips) {
+          const qH = new THREE.Quaternion();
+          glbBones.mixamorigHips.getWorldQuaternion(qH);
+          glbRest.mixamorigHips = { restWorldQuat: qH.clone() };
+        }
+
+        glbModel = model;
+        glbReady = Object.keys(glbRest).length >= 10;
+        if (glbReady) {
+          scene.add(glbModel);
+          procGroup.visible = false;
+          updatePose(currentRigKey, currentPhase, currentPrimaryMuscles, currentSecondaryMuscles);
+          render();
+        }
+      },
+      undefined,
+      () => {
+        glbLoading = false;
+        glbReady = false;
+      }
+    );
   }
 
   function buildMaterials() {
     const THREE = window.THREE;
     materials = {
-      skin: new THREE.MeshStandardMaterial({ color: 0x525866, roughness: 0.55, metalness: 0.12 }),
-      headSkin: new THREE.MeshStandardMaterial({ color: 0x3f4451, roughness: 0.52, metalness: 0.14 }),
+      skin: new THREE.MeshStandardMaterial({ color: 0x3b404d, roughness: 0.55, metalness: 0.14 }),
+      headSkin: new THREE.MeshStandardMaterial({ color: 0x333844, roughness: 0.52, metalness: 0.15 }),
       hair: new THREE.MeshStandardMaterial({ color: 0x16181d, roughness: 0.75, metalness: 0.05 }),
       eye: new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.2, metalness: 0.1, emissive: 0x374151, emissiveIntensity: 0.3 }),
       hand: new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.5, metalness: 0.12 }),
       shoe: new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.55, metalness: 0.1 }),
-      steel: new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.32, metalness: 0.75 }),
+      steel: new THREE.MeshStandardMaterial({ color: 0x717885, roughness: 0.30, metalness: 0.78 }),
       darkSteel: new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.42, metalness: 0.65 }),
-      pad: new THREE.MeshStandardMaterial({ color: 0x1b1f27, roughness: 0.78, metalness: 0.05 }),
-      plate: new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35, metalness: 0.55 }),
+      pad: new THREE.MeshStandardMaterial({ color: 0x181b22, roughness: 0.80, metalness: 0.05 }),
+      plate: new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.32, metalness: 0.58 }),
       accent: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.3 }),
       cable: new THREE.LineBasicMaterial({ color: 0xd1d5db }),
       guideCurve: new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xb45309, emissiveIntensity: 0.6, roughness: 0.3 }),
+      guideMistake: new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, emissiveIntensity: 0.75, roughness: 0.3 }),
       guideStart: new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x15803d, emissiveIntensity: 0.7 }),
       guidePeak: new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, emissiveIntensity: 0.7 }),
-      guideSpine: new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x166534, emissiveIntensity: 0.45, roughness: 0.4 })
+      guideSpine: new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x166534, emissiveIntensity: 0.45, roughness: 0.4 }),
+      angleArc: new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.38, side: THREE.DoubleSide })
     };
 
     muscleMats = {};
@@ -935,8 +989,10 @@
         color: 0x374151,
         emissive: 0x000000,
         emissiveIntensity: 0,
-        roughness: 0.46,
-        metalness: 0.15
+        roughness: 0.42,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0.88
       });
     });
   }
@@ -945,202 +1001,189 @@
     const THREE = window.THREE;
     const g = new THREE.Group();
     const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, 1, 14), mat);
+    cyl.castShadow = true;
+    cyl.receiveShadow = true;
     g.add(cyl);
     const sTop = new THREE.Mesh(new THREE.SphereGeometry(rTop, 12, 10), mat);
     sTop.position.y = 0.5;
+    sTop.castShadow = true;
     const sBot = new THREE.Mesh(new THREE.SphereGeometry(rBot, 12, 10), mat);
     sBot.position.y = -0.5;
+    sBot.castShadow = true;
     g.add(sTop, sBot);
     return g;
   }
 
-  function makeMuscleCap(rx, ry, rz, mat, x, y, z, rxRot = 0, rzRot = 0) {
+  function addMuscleMesh(muscleKey, parent, rx, ry, rz, x, y, z, rxRot = 0, rzRot = 0) {
     const THREE = window.THREE;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 12), mat);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 12), muscleMats[muscleKey]);
     m.scale.set(rx, ry, rz);
     m.position.set(x, y, z);
     m.rotation.x = rxRot;
     m.rotation.z = rzRot;
+    m.userData.baseScale = [rx, ry, rz];
+    if (!muscleMeshes[muscleKey]) muscleMeshes[muscleKey] = [];
+    muscleMeshes[muscleKey].push(m);
+    parent.add(m);
     return m;
   }
 
   function buildSculptedHead() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-
-    // Cranial vault
     const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.095, 18, 16), materials.headSkin);
     cranium.scale.set(0.88, 1.05, 0.96);
     cranium.position.set(0, 0.02, -0.01);
+    cranium.castShadow = true;
     g.add(cranium);
 
-    // Hair / crown cap
     const crown = new THREE.Mesh(new THREE.SphereGeometry(0.097, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.54), materials.hair);
     crown.scale.set(0.89, 1.02, 0.98);
     crown.position.set(0, 0.025, -0.015);
     crown.rotation.x = -0.22;
     g.add(crown);
 
-    // Sculpted jaw + chin
     const jaw = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.048, 0.095, 12), materials.headSkin);
     jaw.scale.set(0.95, 1, 0.88);
     jaw.position.set(0, -0.045, 0.022);
     jaw.rotation.x = 0.25;
     g.add(jaw);
 
-    // Brow ridge
     const brow = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.018, 0.032), materials.headSkin);
     brow.position.set(0, 0.035, 0.078);
     g.add(brow);
 
-    // Nose bridge
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.042, 6), materials.headSkin);
     nose.position.set(0, 0.004, 0.096);
     nose.rotation.x = 0.45;
     g.add(nose);
 
-    // Eyes (subtle light markers so gaze is obvious from any angle)
     [-0.032, 0.032].forEach((ex) => {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.010, 8, 8), materials.eye);
       eye.position.set(ex, 0.020, 0.082);
       g.add(eye);
     });
-
-    // Ears
     [-0.084, 0.084].forEach((ex) => {
       const ear = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), materials.headSkin);
       ear.scale.set(0.45, 1.2, 0.7);
       ear.position.set(ex, 0.01, -0.005);
       g.add(ear);
     });
-
     return g;
   }
 
   function buildHand() {
     const THREE = window.THREE;
     const g = new THREE.Group();
-
-    // Palm
     const palm = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.068, 0.026), materials.hand);
     palm.position.set(0, 0.028, 0);
-    g.add(palm);
-
-    // Curled fingers (4 knuckles/fingers wrapping forward)
+    palm.castShadow = true;
     const fingers = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.014, 0.056, 10), materials.hand);
     fingers.rotation.z = Math.PI / 2;
     fingers.position.set(0, 0.062, 0.014);
-    g.add(fingers);
-
-    // Thumb wrapping opposite side
-    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.009, 0.026, 4, 8) : new THREE.CylinderGeometry(0.009, 0.009, 0.032, 8), materials.hand);
+    const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.032, 8), materials.hand);
     thumb.position.set(0.032, 0.034, 0.016);
     thumb.rotation.z = -0.5;
     thumb.rotation.x = 0.4;
-    g.add(thumb);
-
+    g.add(palm, fingers, thumb);
     return g;
   }
 
   function buildMannequin() {
     const THREE = window.THREE;
+    muscleMeshes = {};
 
-    // Pelvis core
-    const pelvisSeg = new THREE.Group();
-    const pelvCore = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 1, 14), materials.skin);
-    pelvCore.scale.set(1, 1, 0.65);
-    pelvisSeg.add(pelvCore);
-    // Glutes (left & right)
-    pelvisSeg.add(makeMuscleCap(0.072, 0.44, 0.065, muscleMats.glutes, -0.062, 0.0, -0.075));
-    pelvisSeg.add(makeMuscleCap(0.072, 0.44, 0.065, muscleMats.glutes, 0.062, 0.0, -0.075));
+    // Procedural body segments (visible while GLB loads or if offline)
+    const pelvisCore = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 1, 14), materials.skin);
+    pelvisCore.scale.set(1, 1, 0.65);
+    pelvisCore.castShadow = true;
+    const lumbarCore = new THREE.Mesh(new THREE.CylinderGeometry(0.132, 0.128, 1, 14), materials.skin);
+    lumbarCore.scale.set(1, 1, 0.64);
+    lumbarCore.castShadow = true;
+    const chestCore = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.135, 1, 14), materials.skin);
+    chestCore.scale.set(1, 1, 0.64);
+    chestCore.castShadow = true;
 
-    // Lumbar / Core
-    const lumbarSeg = new THREE.Group();
-    const lumbCore = new THREE.Mesh(new THREE.CylinderGeometry(0.132, 0.128, 1, 14), materials.skin);
-    lumbCore.scale.set(1, 1, 0.64);
-    lumbarSeg.add(lumbCore);
-    // Abs (upper/mid/lower pairs)
+    // Dedicated Muscle Overlay Groups (shared across GLB & procedural!)
+    const mPelvis = new THREE.Group();
+    addMuscleMesh("glutes", mPelvis, 0.074, 0.44, 0.068, -0.062, 0, -0.076);
+    addMuscleMesh("glutes", mPelvis, 0.074, 0.44, 0.068, 0.062, 0, -0.076);
+
+    const mLumbar = new THREE.Group();
     [-0.22, 0.06, 0.32].forEach((ay) => {
-      lumbarSeg.add(makeMuscleCap(0.044, 0.13, 0.030, muscleMats.abs, -0.042, ay, 0.076));
-      lumbarSeg.add(makeMuscleCap(0.044, 0.13, 0.030, muscleMats.abs, 0.042, ay, 0.076));
+      addMuscleMesh("abs", mLumbar, 0.044, 0.13, 0.032, -0.042, ay, 0.078);
+      addMuscleMesh("abs", mLumbar, 0.044, 0.13, 0.032, 0.042, ay, 0.078);
     });
-    // Obliques
-    lumbarSeg.add(makeMuscleCap(0.038, 0.36, 0.055, muscleMats.obliques, -0.118, 0.04, 0.015));
-    lumbarSeg.add(makeMuscleCap(0.038, 0.36, 0.055, muscleMats.obliques, 0.118, 0.04, 0.015));
-    // Lower back erectors
-    lumbarSeg.add(makeMuscleCap(0.040, 0.42, 0.034, muscleMats.lower_back, -0.048, -0.02, -0.072));
-    lumbarSeg.add(makeMuscleCap(0.040, 0.42, 0.034, muscleMats.lower_back, 0.048, -0.02, -0.072));
+    addMuscleMesh("obliques", mLumbar, 0.038, 0.36, 0.056, -0.118, 0.04, 0.015);
+    addMuscleMesh("obliques", mLumbar, 0.038, 0.36, 0.056, 0.118, 0.04, 0.015);
+    addMuscleMesh("lower_back", mLumbar, 0.040, 0.42, 0.036, -0.048, -0.02, -0.074);
+    addMuscleMesh("lower_back", mLumbar, 0.040, 0.42, 0.036, 0.048, -0.02, -0.074);
 
-    // Chest / Upper Torso
-    const chestSeg = new THREE.Group();
-    const chCore = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.135, 1, 14), materials.skin);
-    chCore.scale.set(1, 1, 0.64);
-    chestSeg.add(chCore);
-    // Pecs
-    chestSeg.add(makeMuscleCap(0.088, 0.28, 0.045, muscleMats.chest, -0.078, 0.05, 0.088, 0, 0.08));
-    chestSeg.add(makeMuscleCap(0.088, 0.28, 0.045, muscleMats.chest, 0.078, 0.05, 0.088, 0, -0.08));
-    // Lats (V-taper wings)
-    chestSeg.add(makeMuscleCap(0.076, 0.40, 0.052, muscleMats.lats, -0.135, -0.08, -0.055, 0, -0.18));
-    chestSeg.add(makeMuscleCap(0.076, 0.40, 0.052, muscleMats.lats, 0.135, -0.08, -0.055, 0, 0.18));
-    // Mid Back
-    chestSeg.add(makeMuscleCap(0.080, 0.28, 0.038, muscleMats.mid_back, 0, 0.05, -0.088));
-    // Traps
-    chestSeg.add(makeMuscleCap(0.072, 0.18, 0.048, muscleMats.traps, -0.08, 0.42, -0.02, 0, -0.28));
-    chestSeg.add(makeMuscleCap(0.072, 0.18, 0.048, muscleMats.traps, 0.08, 0.42, -0.02, 0, 0.28));
+    const mChest = new THREE.Group();
+    addMuscleMesh("chest", mChest, 0.090, 0.28, 0.046, -0.078, 0.05, 0.090, 0, 0.08);
+    addMuscleMesh("chest", mChest, 0.090, 0.28, 0.046, 0.078, 0.05, 0.090, 0, -0.08);
+    addMuscleMesh("lats", mChest, 0.078, 0.40, 0.054, -0.135, -0.08, -0.055, 0, -0.18);
+    addMuscleMesh("lats", mChest, 0.078, 0.40, 0.054, 0.135, -0.08, -0.055, 0, 0.18);
+    addMuscleMesh("mid_back", mChest, 0.082, 0.28, 0.040, 0, 0.05, -0.090);
+    addMuscleMesh("traps", mChest, 0.074, 0.18, 0.050, -0.08, 0.42, -0.02, 0, -0.28);
+    addMuscleMesh("traps", mChest, 0.074, 0.18, 0.050, 0.08, 0.42, -0.02, 0, 0.28);
 
-    // Upper Arms (with 3-head delts, biceps, triceps)
-    const buildUpperArm = () => {
-      const g = makeTaperedSegment(0.042, 0.050, materials.skin);
-      // Deltoid caps at top (+0.38)
-      g.add(makeMuscleCap(0.042, 0.16, 0.036, muscleMats.front_delts, 0, 0.36, 0.032));
-      g.add(makeMuscleCap(0.048, 0.18, 0.042, muscleMats.side_delts, -0.02, 0.38, 0));
-      g.add(makeMuscleCap(0.042, 0.16, 0.036, muscleMats.rear_delts, 0, 0.36, -0.032));
-      // Bicep & Tricep bellies
-      g.add(makeMuscleCap(0.038, 0.32, 0.032, muscleMats.biceps, 0, -0.02, 0.034));
-      g.add(makeMuscleCap(0.040, 0.34, 0.034, muscleMats.triceps, 0, 0.02, -0.034));
+    const buildMuscleArm = () => {
+      const g = new THREE.Group();
+      addMuscleMesh("front_delts", g, 0.044, 0.16, 0.038, 0, 0.36, 0.034);
+      addMuscleMesh("side_delts", g, 0.050, 0.18, 0.044, -0.02, 0.38, 0);
+      addMuscleMesh("rear_delts", g, 0.044, 0.16, 0.038, 0, 0.36, -0.034);
+      addMuscleMesh("biceps", g, 0.040, 0.32, 0.034, 0, -0.02, 0.036);
+      addMuscleMesh("triceps", g, 0.042, 0.34, 0.036, 0, 0.02, -0.036);
       return g;
     };
 
-    const buildForearm = () => {
-      const g = makeTaperedSegment(0.028, 0.038, materials.skin);
-      g.add(makeMuscleCap(0.036, 0.30, 0.034, muscleMats.forearms, 0, 0.12, 0.008));
+    const buildMuscleForearm = () => {
+      const g = new THREE.Group();
+      addMuscleMesh("forearms", g, 0.038, 0.30, 0.036, 0, 0.12, 0.008);
       return g;
     };
 
-    const buildThigh = () => {
-      const g = makeTaperedSegment(0.050, 0.068, materials.skin);
-      g.add(makeMuscleCap(0.058, 0.38, 0.042, muscleMats.quads, 0, 0.02, 0.044));
-      g.add(makeMuscleCap(0.054, 0.36, 0.038, muscleMats.hamstrings, 0, 0.04, -0.042));
+    const buildMuscleThigh = () => {
+      const g = new THREE.Group();
+      addMuscleMesh("quads", g, 0.060, 0.38, 0.044, 0, 0.02, 0.046);
+      addMuscleMesh("hamstrings", g, 0.056, 0.36, 0.040, 0, 0.04, -0.044);
       return g;
     };
 
-    const buildCalf = () => {
-      const g = makeTaperedSegment(0.032, 0.046, materials.skin);
-      g.add(makeMuscleCap(0.044, 0.24, 0.038, muscleMats.calves, 0, 0.16, -0.032));
+    const buildMuscleCalf = () => {
+      const g = new THREE.Group();
+      addMuscleMesh("calves", g, 0.046, 0.24, 0.040, 0, 0.16, -0.034);
       return g;
     };
 
     parts = {
-      pelvisSeg,
-      lumbarSeg,
-      chestSeg,
-      neckSeg: makeTaperedSegment(0.046, 0.052, materials.skin),
-      headMesh: buildSculptedHead(),
-
-      armUL: buildUpperArm(),
-      armFL: buildForearm(),
+      pelvisSeg: pelvisCore,
+      lumbarSeg: lumbarCore,
+      chestSeg:  chestCore,
+      neckSeg:   makeTaperedSegment(0.046, 0.052, materials.skin),
+      headMesh:  buildSculptedHead(),
+      armUL: makeTaperedSegment(0.042, 0.050, materials.skin),
+      armFL: makeTaperedSegment(0.028, 0.038, materials.skin),
       handL: buildHand(),
-      armUR: buildUpperArm(),
-      armFR: buildForearm(),
+      armUR: makeTaperedSegment(0.042, 0.050, materials.skin),
+      armFR: makeTaperedSegment(0.028, 0.038, materials.skin),
       handR: buildHand(),
-
-      thighL: buildThigh(),
-      calfL:  buildCalf(),
+      thighL: makeTaperedSegment(0.050, 0.068, materials.skin),
+      calfL:  makeTaperedSegment(0.032, 0.046, materials.skin),
       footL:  makeTaperedSegment(0.032, 0.038, materials.shoe),
-      thighR: buildThigh(),
-      calfR:  buildCalf(),
+      thighR: makeTaperedSegment(0.050, 0.068, materials.skin),
+      calfR:  makeTaperedSegment(0.032, 0.046, materials.skin),
       footR:  makeTaperedSegment(0.032, 0.038, materials.shoe),
 
+      // Shared Muscle Overlays
+      mPelvis, mLumbar, mChest,
+      mArmUL: buildMuscleArm(), mArmFL: buildMuscleForearm(),
+      mArmUR: buildMuscleArm(), mArmFR: buildMuscleForearm(),
+      mThighL: buildMuscleThigh(), mCalfL: buildMuscleCalf(),
+      mThighR: buildMuscleThigh(), mCalfR: buildMuscleCalf(),
+
+      // Props
       barGroup: new THREE.Group(),
       dbL: new THREE.Group(),
       dbR: new THREE.Group(),
@@ -1152,30 +1195,36 @@
       cableLines: []
     };
 
-    // Barbell
-    const barShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.44, 12), materials.steel);
+    // Olympic Barbell with knurl bands & collars
+    const barShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.48, 12), materials.steel);
     barShaft.rotation.z = Math.PI / 2;
-    const plateGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.045, 20);
+    barShaft.castShadow = true;
+    const plateGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.045, 22);
     const innerPlateGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.03, 18);
     [-0.58, 0.58].forEach((px) => {
       const p1 = new THREE.Mesh(plateGeo, materials.plate);
       p1.rotation.z = Math.PI / 2;
       p1.position.x = px;
+      p1.castShadow = true;
       const p2 = new THREE.Mesh(innerPlateGeo, materials.darkSteel);
       p2.rotation.z = Math.PI / 2;
-      p2.position.x = px + (px > 0 ? -0.04 : 0.04);
-      parts.barGroup.add(p1, p2);
+      p2.position.x = px + (px > 0 ? -0.042 : 0.042);
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.03, 10), materials.accent);
+      collar.rotation.z = Math.PI / 2;
+      collar.position.x = px + (px > 0 ? 0.038 : -0.038);
+      parts.barGroup.add(p1, p2, collar);
     });
     parts.barGroup.add(barShaft);
 
-    // Dumbbells
     const buildDb = (grp) => {
       const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.24, 10), materials.steel);
       handle.rotation.z = Math.PI / 2;
+      handle.castShadow = true;
       const endGeo = new THREE.CylinderGeometry(0.068, 0.068, 0.052, 8);
       const e1 = new THREE.Mesh(endGeo, materials.plate);
       e1.rotation.z = Math.PI / 2;
       e1.position.x = -0.10;
+      e1.castShadow = true;
       const e2 = e1.clone();
       e2.position.x = 0.10;
       grp.add(handle, e1, e2);
@@ -1195,18 +1244,37 @@
     latEndR.position.set(0.36, -0.04, 0);
     parts.latBar.add(latMid, latEndL, latEndR);
 
-    // V-Bar for seated cable row
+    // V-Bar
     const vHandle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.025), materials.steel);
     parts.vBar.add(vHandle);
 
-    Object.values(parts).forEach((obj) => {
-      if (obj && obj.isObject3D) rootGroup.add(obj);
+    // Split V-Rope (2 dynamic lines + end stoppers)
+    parts.ropeL = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1, 8), materials.darkSteel);
+    parts.ropeR = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1, 8), materials.darkSteel);
+    parts.ropeStopL = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.03, 10), materials.accent);
+    parts.ropeStopR = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.03, 10), materials.accent);
+    parts.ropeGroup.add(parts.ropeL, parts.ropeR, parts.ropeStopL, parts.ropeStopR);
+
+    // Route procedural segments into procGroup, muscles into muscleGroup, props into scene
+    ["pelvisSeg", "lumbarSeg", "chestSeg", "neckSeg", "headMesh",
+     "armUL", "armFL", "handL", "armUR", "armFR", "handR",
+     "thighL", "calfL", "footL", "thighR", "calfR", "footR"].forEach((k) => {
+      procGroup.add(parts[k]);
+    });
+    ["mPelvis", "mLumbar", "mChest", "mArmUL", "mArmFL", "mArmUR", "mArmFR",
+     "mThighL", "mCalfL", "mThighR", "mCalfR"].forEach((k) => {
+      muscleGroup.add(parts[k]);
+    });
+    ["barGroup", "dbL", "dbR", "dbSingle", "latBar", "vBar", "ropeGroup"].forEach((k) => {
+      scene.add(parts[k]);
     });
   }
 
   function clearGroup(grp) {
     while (grp.children.length) {
-      grp.remove(grp.children[0]);
+      const obj = grp.children[0];
+      grp.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
     }
   }
 
@@ -1229,15 +1297,25 @@
     frameR.position.x = x + 0.14;
     g.add(frameL, frameR);
 
-    // Static base plates
     for (let i = 0; i < 6; i++) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.032, 0.14), materials.darkSteel);
       p.position.set(x, 0.12 + i * 0.042, z);
+      p.castShadow = true;
+      p.receiveShadow = true;
       g.add(p);
     }
 
-    // Animated selected stack block
-    const movingStack = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.18, 0.14), materials.plate);
+    const movingStack = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const mp = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.034, 0.14), materials.plate);
+      mp.position.y = (i - 1.5) * 0.042;
+      mp.castShadow = true;
+      movingStack.add(mp);
+    }
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.18, 8), materials.accent);
+    pin.rotation.x = Math.PI / 2;
+    pin.position.set(0, -0.02, 0.03);
+    movingStack.add(pin);
     movingStack.position.set(x, 0.45, z);
     g.add(movingStack);
     return { group: g, movingStack };
@@ -1253,6 +1331,8 @@
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
       m.position.set(x, y, z);
       m.rotation.x = rx;
+      m.castShadow = true;
+      m.receiveShadow = true;
       parent.add(m);
       return m;
     };
@@ -1262,6 +1342,8 @@
       m.position.set(x, y, z);
       m.rotation.z = rotZ;
       m.rotation.x = rotX;
+      m.castShadow = true;
+      m.receiveShadow = true;
       parent.add(m);
       return m;
     };
@@ -1302,7 +1384,6 @@
       equipGroup.add(ws.group);
       animEquip.weightStack = ws.movingStack;
 
-      // Pivoting left & right pec deck arms
       const buildArm = (side) => {
         const pivot = new THREE.Group();
         pivot.position.set(side * 0.24, 1.38, -0.14);
@@ -1369,7 +1450,6 @@
     } else if (equip === "lat_machine") {
       addBox(0.32, 0.07, 0.38, 0, 0.42, 0.04, materials.pad);
       addBox(0.07, 0.39, 0.07, 0, 0.195, 0.04, materials.steel);
-      // Knee hold-down pads
       addBox(0.05, 0.26, 0.05, 0, 0.48, 0.32, materials.steel);
       addCyl(0.05, 0.34, 0, 0.58, 0.32, materials.pad, Math.PI / 2);
       addBox(0.08, 1.95, 0.08, 0, 0.975, -0.46, materials.steel);
@@ -1416,12 +1496,20 @@
       wheel.position.set(0, py, 0.90);
       equipGroup.add(wheel);
 
-      ["wrL", "wrR"].forEach((key) => {
-        const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, py, 0.9), new THREE.Vector3(0, 1, 0)]);
+      const prop = RIGS_3D[currentRigKey]?.prop;
+      if (prop === "rope") {
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, py, 0.9), new THREE.Vector3(0, 1.2, 0.3)]);
         const line = new THREE.Line(lineGeo, materials.cable);
         equipGroup.add(line);
-        parts.cableLines.push({ line, origin: [0, py, 0.90], target: key });
-      });
+        parts.cableLines.push({ line, origin: [0, py, 0.90], target: "ropeApex" });
+      } else {
+        ["wrL", "wrR"].forEach((key) => {
+          const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, py, 0.9), new THREE.Vector3(0, 1, 0)]);
+          const line = new THREE.Line(lineGeo, materials.cable);
+          equipGroup.add(line);
+          parts.cableLines.push({ line, origin: [0, py, 0.90], target: key });
+        });
+      }
     } else if (equip === "leg_press") {
       addBox(0.36, 0.07, 0.36, 0, 0.36, -0.04, materials.pad);
       addBox(0.34, 0.54, 0.07, 0, 0.64, -0.34, materials.pad, -0.70);
@@ -1443,7 +1531,6 @@
       equipGroup.add(ws.group);
       animEquip.weightStack = ws.movingStack;
 
-      // Pivoting leg lever arm centered at knee (0, 0.48, 0.42)
       const legPivot = new THREE.Group();
       legPivot.position.set(0, 0.48, 0.42);
       const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.42, 10), materials.steel);
@@ -1510,26 +1597,70 @@
     seg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
   }
 
-  function applyMuscleHighlights(primaryMuscles, secondaryMuscles) {
+  function applyMuscleHighlights(primaryMuscles, secondaryMuscles, ease) {
     const prim = new Set(primaryMuscles || []);
     const sec = new Set(secondaryMuscles || []);
     MUSCLE_KEYS.forEach((m) => {
       const mat = muscleMats[m];
       if (!mat) return;
+      let mult = 1.0;
       if (prim.has(m)) {
         mat.color.setHex(0xef4444);
         mat.emissive.setHex(0x991b1b);
-        mat.emissiveIntensity = 0.65;
+        mat.emissiveIntensity = 0.45 + ease * 0.75;
+        mat.opacity = 0.92;
+        mult = 1 + ease * 0.09;
       } else if (sec.has(m)) {
         mat.color.setHex(0xf59e0b);
         mat.emissive.setHex(0x92400e);
-        mat.emissiveIntensity = 0.40;
+        mat.emissiveIntensity = 0.22 + ease * 0.36;
+        mat.opacity = 0.85;
+        mult = 1 + ease * 0.04;
       } else {
         mat.color.setHex(0x374151);
         mat.emissive.setHex(0x000000);
         mat.emissiveIntensity = 0;
+        mat.opacity = glbReady ? 0.16 : 0.65;
       }
+      (muscleMeshes[m] || []).forEach((mesh) => {
+        const bs = mesh.userData.baseScale;
+        if (bs) mesh.scale.set(bs[0] * mult, bs[1], bs[2] * mult);
+      });
     });
+  }
+
+  function applyMistakeOffset(rig, p, ease) {
+    if (!showMistake) return;
+    const type = rig.mistakeType || "swing";
+    if (type === "press_flare") {
+      // Flared 90° elbows + arched lower back
+      p.elL.x -= 0.14;
+      p.elR.x += 0.14;
+      p.elL.z -= 0.10;
+      p.elR.z -= 0.10;
+      p.lumbar.y += 0.07;
+    } else if (type === "round_back") {
+      // Rounded lumbar flexion + forward head
+      p.lumbar.y -= 0.08 * (0.4 + 0.6 * ease);
+      p.lumbar.z -= 0.08 * (0.4 + 0.6 * ease);
+      p.chest.y -= 0.05;
+      p.head.y -= 0.06;
+    } else if (type === "knee_valgus") {
+      // Knees caving inward (valgus) + shallow depth
+      p.knL.x += 0.11 * ease;
+      p.knR.x -= 0.11 * ease;
+      p.pelvis.y += 0.14 * ease;
+      p.lumbar.z -= 0.06 * ease;
+    } else if (type === "swing") {
+      // Momentum body swing + shrugged shoulders
+      p.chest.z -= 0.12 * ease;
+      p.neck.z -= 0.14 * ease;
+      p.head.z -= 0.14 * ease;
+      p.shL.y += 0.05 * ease;
+      p.shR.y += 0.05 * ease;
+      p.elL.z += 0.08 * ease;
+      p.elR.z += 0.08 * ease;
+    }
   }
 
   function computePoseAt(rig, t) {
@@ -1538,7 +1669,8 @@
     JOINT_KEYS.forEach((k) => {
       p[k] = lerpVec3(rig.start[k], rig.end[k], ease);
     });
-    return p;
+    applyMistakeOffset(rig, p, ease);
+    return { p, ease };
   }
 
   function buildMovementGuides(rig) {
@@ -1553,7 +1685,7 @@
 
     for (let i = 0; i <= samples; i++) {
       const t = i / samples;
-      const p = computePoseAt(rig, t);
+      const { p } = computePoseAt(rig, t);
       if (rig.track === "anBoth") {
         ptsL.push(p.anL.clone());
         ptsR.push(p.anR.clone());
@@ -1569,26 +1701,26 @@
       }
     }
 
+    const curveMat = showMistake ? materials.guideMistake : materials.guideCurve;
+
     const addCurveTube = (pts) => {
       if (pts.length < 2) return;
       const dist = pts[0].distanceTo(pts[pts.length - 1]);
       if (dist < 0.015) return;
 
       const curve = new THREE.CatmullRomCurve3(pts);
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.011, 8, false), materials.guideCurve);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.011, 8, false), curveMat);
       guideGroup.add(tube);
 
-      // Start (green) & Peak (red) markers
       const sDot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), materials.guideStart);
       sDot.position.copy(pts[0]);
       const eDot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), materials.guidePeak);
       eDot.position.copy(pts[pts.length - 1]);
       guideGroup.add(sDot, eDot);
 
-      // Directional arrow cone at midpoint
       const midPt = curve.getPointAt(0.55);
       const tan = curve.getTangentAt(0.55).normalize();
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.065, 10), materials.guideCurve);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.065, 10), curveMat);
       cone.position.copy(midPt);
       cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
       guideGroup.add(cone);
@@ -1599,57 +1731,148 @@
     if (ptsR.length) addCurveTube(ptsR);
   }
 
+  function updateJointAngleArc(a, pivot, b) {
+    const THREE = window.THREE;
+    const v1 = new THREE.Vector3().subVectors(a, pivot).normalize();
+    const v2 = new THREE.Vector3().subVectors(b, pivot).normalize();
+    const dot = Math.max(-0.999, Math.min(0.999, v1.dot(v2)));
+    const angle = Math.acos(dot);
+    if (angle < 0.15) return;
+
+    const radius = 0.12;
+    const segs = 12;
+    const verts = [pivot.x, pivot.y, pivot.z];
+    const q = new THREE.Quaternion().setFromUnitVectors(v1, v2);
+    for (let i = 0; i <= segs; i++) {
+      const dir = v1.clone().applyQuaternion(new THREE.Quaternion().slerpQuaternions(new THREE.Quaternion(), q, i / segs));
+      const pt = pivot.clone().addScaledVector(dir, radius);
+      verts.push(pt.x, pt.y, pt.z);
+    }
+    const indices = [];
+    for (let i = 1; i <= segs; i++) {
+      indices.push(0, i, i + 1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    const mesh = new THREE.Mesh(geo, materials.angleArc);
+    angleGroup.add(mesh);
+  }
+
+  function driveGlbSkeleton(p, torsoFwd) {
+    if (!glbReady || !glbModel || !glbBones.mixamorigHips) return;
+    const THREE = window.THREE;
+
+    // Position hips
+    glbBones.mixamorigHips.position.set(0, 0, 0);
+    glbModel.position.set(p.pelvis.x, p.pelvis.y - 0.94, p.pelvis.z);
+
+    // Orient hips with spine up & torso forward
+    const spineUp = new THREE.Vector3().subVectors(p.chest, p.pelvis).normalize();
+    const fwd = torsoFwd.clone().sub(spineUp.clone().multiplyScalar(torsoFwd.dot(spineUp))).normalize();
+    const right = new THREE.Vector3().crossVectors(spineUp, fwd).normalize();
+    const orthoFwd = new THREE.Vector3().crossVectors(right, spineUp).normalize();
+    const hipsTargetQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, spineUp, orthoFwd));
+    glbBones.mixamorigHips.quaternion.copy(hipsTargetQ);
+    glbModel.updateMatrixWorld(true);
+
+    const alignBone = (bName, ptA, ptB) => {
+      const bone = glbBones[bName];
+      const rest = glbRest[bName];
+      if (!bone || !rest || !bone.parent) return;
+      const targetDir = new THREE.Vector3().subVectors(ptB, ptA).normalize();
+      const deltaWorld = new THREE.Quaternion().setFromUnitVectors(rest.restDir, targetDir);
+      const targetWorldQ = deltaWorld.multiply(rest.restWorldQuat);
+      const parentWorldQ = new THREE.Quaternion();
+      bone.parent.getWorldQuaternion(parentWorldQ);
+      bone.quaternion.copy(parentWorldQ.invert().multiply(targetWorldQ));
+      bone.updateMatrixWorld(true);
+    };
+
+    alignBone("mixamorigSpine", p.pelvis, p.chest);
+    alignBone("mixamorigSpine2", p.chest, p.neck);
+    alignBone("mixamorigNeck", p.neck, p.head);
+
+    alignBone("mixamorigLeftArm", p.shL, p.elL);
+    alignBone("mixamorigLeftForeArm", p.elL, p.wrL);
+    alignBone("mixamorigRightArm", p.shR, p.elR);
+    alignBone("mixamorigRightForeArm", p.elR, p.wrR);
+
+    alignBone("mixamorigLeftUpLeg", p.hipL, p.knL);
+    alignBone("mixamorigLeftLeg", p.knL, p.anL);
+    alignBone("mixamorigRightUpLeg", p.hipR, p.knR);
+    alignBone("mixamorigRightLeg", p.knR, p.anR);
+  }
+
   function updatePose(rigKey, t, primaryMuscles = [], secondaryMuscles = []) {
     if (!parts || !RIGS_3D[rigKey]) return;
     const THREE = window.THREE;
     const rig = RIGS_3D[rigKey];
-    const p = computePoseAt(rig, t);
+    const { p, ease } = computePoseAt(rig, t);
 
-    applyMuscleHighlights(primaryMuscles, secondaryMuscles);
+    applyMuscleHighlights(primaryMuscles, secondaryMuscles, ease);
 
-    // Compute torso forward vector from shoulder line x spine up
     const spineUp = new THREE.Vector3().subVectors(p.neck, p.pelvis).normalize();
     const shRight = new THREE.Vector3().subVectors(p.shR, p.shL).normalize();
     let torsoFwd = new THREE.Vector3().crossVectors(shRight, spineUp).normalize();
     if (rig.prone) torsoFwd.multiplyScalar(-1);
     if (torsoFwd.lengthSq() < 0.01) torsoFwd.set(0, 0, 1);
 
-    orientSegment(parts.pelvisSeg, p.pelvis, p.lumbar, torsoFwd);
-    orientSegment(parts.lumbarSeg, p.lumbar, p.chest, torsoFwd);
-    orientSegment(parts.chestSeg, p.chest, p.neck, torsoFwd);
-    orientSegment(parts.neckSeg, p.neck, p.head, torsoFwd);
+    // Drive GLB skeleton if ready, else procedural segments
+    if (glbReady && glbModel) {
+      procGroup.visible = false;
+      glbModel.visible = true;
+      driveGlbSkeleton(p, torsoFwd);
+    } else {
+      procGroup.visible = true;
+      orientSegment(parts.pelvisSeg, p.pelvis, p.lumbar, torsoFwd);
+      orientSegment(parts.lumbarSeg, p.lumbar, p.chest, torsoFwd);
+      orientSegment(parts.chestSeg, p.chest, p.neck, torsoFwd);
+      orientSegment(parts.neckSeg, p.neck, p.head, torsoFwd);
 
-    // Orient sculpted head cleanly
-    parts.headMesh.position.copy(p.head);
-    const headUp = new THREE.Vector3().subVectors(p.head, p.neck).normalize();
-    const headFwd = torsoFwd.clone().sub(headUp.clone().multiplyScalar(torsoFwd.dot(headUp)));
-    if (headFwd.lengthSq() > 1e-4) {
-      headFwd.normalize();
-      const headRight = new THREE.Vector3().crossVectors(headUp, headFwd).normalize();
-      const orthoFwd = new THREE.Vector3().crossVectors(headRight, headUp).normalize();
-      parts.headMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(headRight, headUp, orthoFwd));
+      parts.headMesh.position.copy(p.head);
+      const headUp = new THREE.Vector3().subVectors(p.head, p.neck).normalize();
+      const headFwd = torsoFwd.clone().sub(headUp.clone().multiplyScalar(torsoFwd.dot(headUp)));
+      if (headFwd.lengthSq() > 1e-4) {
+        headFwd.normalize();
+        const headRight = new THREE.Vector3().crossVectors(headUp, headFwd).normalize();
+        const orthoFwd = new THREE.Vector3().crossVectors(headRight, headUp).normalize();
+        parts.headMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(headRight, headUp, orthoFwd));
+      }
+
+      orientSegment(parts.armUL, p.shL, p.elL, torsoFwd);
+      orientSegment(parts.armFL, p.elL, p.wrL, torsoFwd);
+      orientSegment(parts.armUR, p.shR, p.elR, torsoFwd);
+      orientSegment(parts.armFR, p.elR, p.wrR, torsoFwd);
+
+      const orientHand = (hand, el, wr) => {
+        hand.position.copy(wr);
+        const dir = new THREE.Vector3().subVectors(wr, el).normalize();
+        hand.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      };
+      orientHand(parts.handL, p.elL, p.wrL);
+      orientHand(parts.handR, p.elR, p.wrR);
+
+      orientSegment(parts.thighL, p.hipL, p.knL, torsoFwd);
+      orientSegment(parts.calfL, p.knL, p.anL, torsoFwd);
+      orientSegment(parts.footL, p.anL, p.toeL);
+      orientSegment(parts.thighR, p.hipR, p.knR, torsoFwd);
+      orientSegment(parts.calfR, p.knR, p.anR, torsoFwd);
+      orientSegment(parts.footR, p.anR, p.toeR);
     }
 
-    orientSegment(parts.armUL, p.shL, p.elL, torsoFwd);
-    orientSegment(parts.armFL, p.elL, p.wrL, torsoFwd);
-    orientSegment(parts.armUR, p.shR, p.elR, torsoFwd);
-    orientSegment(parts.armFR, p.elR, p.wrR, torsoFwd);
-
-    // Orient hands at wrists
-    const orientHand = (hand, el, wr) => {
-      hand.position.copy(wr);
-      const dir = new THREE.Vector3().subVectors(wr, el).normalize();
-      hand.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    };
-    orientHand(parts.handL, p.elL, p.wrL);
-    orientHand(parts.handR, p.elR, p.wrR);
-
-    orientSegment(parts.thighL, p.hipL, p.knL, torsoFwd);
-    orientSegment(parts.calfL, p.knL, p.anL, torsoFwd);
-    orientSegment(parts.footL, p.anL, p.toeL);
-    orientSegment(parts.thighR, p.hipR, p.knR, torsoFwd);
-    orientSegment(parts.calfR, p.knR, p.anR, torsoFwd);
-    orientSegment(parts.footR, p.anR, p.toeR);
+    // Orient Shared Muscle Overlay Groups
+    orientSegment(parts.mPelvis, p.pelvis, p.lumbar, torsoFwd);
+    orientSegment(parts.mLumbar, p.lumbar, p.chest, torsoFwd);
+    orientSegment(parts.mChest, p.chest, p.neck, torsoFwd);
+    orientSegment(parts.mArmUL, p.shL, p.elL, torsoFwd);
+    orientSegment(parts.mArmFL, p.elL, p.wrL, torsoFwd);
+    orientSegment(parts.mArmUR, p.shR, p.elR, torsoFwd);
+    orientSegment(parts.mArmFR, p.elR, p.wrR, torsoFwd);
+    orientSegment(parts.mThighL, p.hipL, p.knL, torsoFwd);
+    orientSegment(parts.mCalfL, p.knL, p.anL, torsoFwd);
+    orientSegment(parts.mThighR, p.hipR, p.knR, torsoFwd);
+    orientSegment(parts.mCalfR, p.knR, p.anR, torsoFwd);
 
     // Props
     parts.barGroup.visible = rig.prop === "bar";
@@ -1658,6 +1881,7 @@
     parts.dbSingle.visible = rig.prop === "dumbbell_single";
     parts.latBar.visible = rig.prop === "lat_bar";
     parts.vBar.visible = rig.prop === "v_bar";
+    parts.ropeGroup.visible = rig.prop === "rope";
 
     if (rig.prop === "bar" || rig.prop === "lat_bar" || rig.prop === "v_bar") {
       const midWr = new THREE.Vector3().addVectors(p.wrL, p.wrR).multiplyScalar(0.5);
@@ -1673,39 +1897,41 @@
     } else if (rig.prop === "dumbbell_single") {
       const midWr = new THREE.Vector3().addVectors(p.wrL, p.wrR).multiplyScalar(0.5);
       parts.dbSingle.position.copy(midWr);
+    } else if (rig.prop === "rope") {
+      const apex = new THREE.Vector3().addVectors(p.wrL, p.wrR).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.16, 0.08));
+      orientSegment(parts.ropeL, apex, p.wrL);
+      orientSegment(parts.ropeR, apex, p.wrR);
+      parts.ropeStopL.position.copy(p.wrL);
+      parts.ropeStopR.position.copy(p.wrR);
+      p.ropeApex = apex;
     }
 
     // Dynamic cables
     parts.cableLines.forEach((c) => {
       const tgt = c.target === "midWr"
         ? new THREE.Vector3().addVectors(p.wrL, p.wrR).multiplyScalar(0.5)
-        : p[c.target];
-      c.line.geometry.setFromPoints([
-        new THREE.Vector3(c.origin[0], c.origin[1], c.origin[2]),
-        tgt
-      ]);
+        : c.target === "ropeApex" && p.ropeApex
+          ? p.ropeApex
+          : p[c.target];
+      if (tgt) {
+        c.line.geometry.setFromPoints([
+          new THREE.Vector3(c.origin[0], c.origin[1], c.origin[2]),
+          tgt
+        ]);
+      }
     });
 
-    // Animated Machine Parts!
-    const ease = 0.5 - 0.5 * Math.cos(Math.PI * t);
-    if (animEquip.weightStack) {
-      animEquip.weightStack.position.y = 0.42 + ease * 0.28;
-    }
+    // Animated Machine Parts
+    if (animEquip.weightStack) animEquip.weightStack.position.y = 0.42 + ease * 0.28;
     if (animEquip.pecArmL && animEquip.pecArmR) {
       const angleL = Math.atan2(p.wrL.x - (-0.24), p.wrL.z - (-0.14));
       const angleR = Math.atan2(p.wrR.x - 0.24, p.wrR.z - (-0.14));
       animEquip.pecArmL.rotation.y = angleL * 0.65;
       animEquip.pecArmR.rotation.y = angleR * 0.65;
     }
-    if (animEquip.pressPivot) {
-      animEquip.pressPivot.rotation.x = -0.18 - ease * 0.42;
-    }
-    if (animEquip.ohPivot) {
-      animEquip.ohPivot.position.y = 1.08 + ease * 0.40;
-    }
-    if (animEquip.rowPivot) {
-      animEquip.rowPivot.position.z = 0.46 - ease * 0.36;
-    }
+    if (animEquip.pressPivot) animEquip.pressPivot.rotation.x = -0.18 - ease * 0.42;
+    if (animEquip.ohPivot) animEquip.ohPivot.position.y = 1.08 + ease * 0.40;
+    if (animEquip.rowPivot) animEquip.rowPivot.position.z = 0.46 - ease * 0.36;
     if (animEquip.sledGroup) {
       const midFoot = new THREE.Vector3().addVectors(p.anL, p.anR).multiplyScalar(0.5);
       animEquip.sledGroup.position.set(midFoot.x, midFoot.y + 0.04, midFoot.z + 0.06);
@@ -1717,18 +1943,26 @@
       animEquip.legPivot.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
     }
 
-    // Dynamic green Spine Posture Line inside guideGroup (keep movement curve tubes intact!)
+    // Dynamic Spine Posture Line & Joint-Angle Arcs
+    clearGroup(angleGroup);
     if (showGuides) {
       let spineObj = guideGroup.getObjectByName("spineGuide");
+      const sCurve = new THREE.CatmullRomCurve3([p.pelvis, p.lumbar, p.chest, p.neck]);
       if (!spineObj) {
-        const sCurve = new THREE.CatmullRomCurve3([p.pelvis, p.lumbar, p.chest, p.neck]);
         spineObj = new THREE.Mesh(new THREE.TubeGeometry(sCurve, 12, 0.009, 6, false), materials.guideSpine);
         spineObj.name = "spineGuide";
         guideGroup.add(spineObj);
       } else {
-        const sCurve = new THREE.CatmullRomCurve3([p.pelvis, p.lumbar, p.chest, p.neck]);
         spineObj.geometry.dispose();
         spineObj.geometry = new THREE.TubeGeometry(sCurve, 12, 0.009, 6, false);
+      }
+
+      if (rig.angleType === "knee") {
+        updateJointAngleArc(p.hipR, p.knR, p.anR);
+      } else if (rig.angleType === "hip") {
+        updateJointAngleArc(p.chest, p.pelvis, p.knR);
+      } else {
+        updateJointAngleArc(p.shR, p.elR, p.wrR);
       }
     }
   }
@@ -1753,8 +1987,7 @@
 
   function setCameraPreset(preset) {
     if (!camera || !controls) return;
-    const targetY = 0.92;
-    controls.target.set(0, targetY, 0);
+    controls.target.set(0, 0.92, 0);
     if (preset === "front") camera.position.set(0, 1.15, 2.45);
     else if (preset === "side") camera.position.set(2.45, 1.15, 0);
     else if (preset === "back") camera.position.set(0, 1.15, -2.45);
@@ -1772,10 +2005,11 @@
 
   function loadExercise(canvas, rigKey, primaryMuscles = [], secondaryMuscles = [], exId = "") {
     if (!initScene(canvas)) return false;
-    currentExerciseId = exId;
     currentRigKey = resolveRigKey(rigKey, exId);
     currentPrimaryMuscles = primaryMuscles || [];
     currentSecondaryMuscles = secondaryMuscles || [];
+    currentPhase = 0;
+    showMistake = false;
     const equip = resolveEquipment(currentRigKey, exId);
     buildEquipment(equip);
     buildMovementGuides(RIGS_3D[currentRigKey]);
@@ -1787,6 +2021,7 @@
   }
 
   function setPhase(t) {
+    currentPhase = t;
     updatePose(currentRigKey, t, currentPrimaryMuscles, currentSecondaryMuscles);
     render();
   }
@@ -1794,8 +2029,23 @@
   function toggleGuides() {
     showGuides = !showGuides;
     buildMovementGuides(RIGS_3D[currentRigKey]);
+    updatePose(currentRigKey, currentPhase, currentPrimaryMuscles, currentSecondaryMuscles);
     render();
     return showGuides;
+  }
+
+  function toggleMistake() {
+    showMistake = !showMistake;
+    buildMovementGuides(RIGS_3D[currentRigKey]);
+    updatePose(currentRigKey, currentPhase, currentPrimaryMuscles, currentSecondaryMuscles);
+    render();
+    return showMistake;
+  }
+
+  function getMistakeNote() {
+    if (!showMistake) return "";
+    const type = RIGS_3D[currentRigKey]?.mistakeType || "swing";
+    return MISTAKE_NOTES[type] || MISTAKE_NOTES.swing;
   }
 
   window.MuscleMap3D = {
@@ -1806,6 +2056,9 @@
     resize,
     setCameraPreset,
     toggleGuides,
-    getGuidesEnabled: () => showGuides
+    getGuidesEnabled: () => showGuides,
+    toggleMistake,
+    getMistakeEnabled: () => showMistake,
+    getMistakeNote
   };
 })();
