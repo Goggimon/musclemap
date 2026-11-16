@@ -1,10 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v6.4";
+  const APP_VERSION = "v6.5";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v6.5",
+      date: "2026-11-16",
+      items: [
+        "Slimmed down the Home Biometric Scan figure and added a live Front / Rear toggle on the Home card",
+        "Made Weekly Set Target (04 // WEEKLY LOAD) customizable per profile via Edit or Customize",
+        "Added Push / Pull / Legs balance gauge on Home and visual ratio bars in Anatomy Balance Diagnostics"
+      ]
+    },
     {
       version: "v6.4",
       date: "2026-11-15",
@@ -792,8 +801,8 @@
         u2: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" }
       },
       settings: {
-        u1: { autoRest: true, defaultRestSec: 90 },
-        u2: { autoRest: true, defaultRestSec: 90 }
+        u1: { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 },
+        u2: { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 }
       },
       dashboardPrefs: {
         u1: { session: true, kpis: true, recommended: true, streak: true, quick_links: true, recent: true },
@@ -811,6 +820,7 @@
   let currentView = "dashboard";
   let currentDashPreset = "overview";
   let currentSide = "front";
+  let dashHeroSide = "front";
   let currentMetric = "sets";
   let currentAnatomyTab = "overview";
   let currentWindow = "7";
@@ -901,7 +911,7 @@
   }
 
   function getProfileSettings(profileId = state.activeProfileId) {
-    if (!state.settings[profileId]) state.settings[profileId] = { autoRest: true, defaultRestSec: 90 };
+    if (!state.settings[profileId]) state.settings[profileId] = { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 };
     return state.settings[profileId];
   }
 
@@ -2369,7 +2379,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v6.4)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v6.5)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -2535,6 +2545,8 @@
 
   function openCustomizeDashboardModal() {
     const prefs = getDashboardPrefs();
+    const targetInp = document.getElementById("dash-weekly-set-target");
+    if (targetInp) targetInp.value = String(getProfileSettings().weeklySetTarget || 40);
     const labels = [
       ["session", "Session Action Card"],
       ["kpis", "7-Day KPIs (Sessions, Volume, Sets)"],
@@ -2557,7 +2569,16 @@
   }
 
   function renderDashboardBento(allWorkouts, recent7, stats7, trainedMuscles, totalSets) {
-    // 1. Mini anatomy muscle highlights inside hero panel
+    // 1. Mini anatomy muscle highlights + Front/Rear toggle inside hero panel
+    const frontGrp = document.getElementById("dash-hero-front-group");
+    const backGrp = document.getElementById("dash-hero-back-group");
+    if (frontGrp && backGrp) {
+      frontGrp.classList.toggle("hidden", dashHeroSide !== "front");
+      backGrp.classList.toggle("hidden", dashHeroSide !== "back");
+    }
+    document.getElementById("btn-hero-scan-front")?.classList.toggle("active", dashHeroSide === "front");
+    document.getElementById("btn-hero-scan-back")?.classList.toggle("active", dashHeroSide === "back");
+
     document.querySelectorAll("#dash-hero-scan-svg .dash-mini-muscle").forEach((g) => {
       const m = g.dataset.miniMuscle;
       const lvl = getHeatLevel(stats7[m]?.weightedSets || 0, "7");
@@ -2593,8 +2614,8 @@
       }
     }
 
-    // 3. 10-segment weekly set target meter
-    const targetSets = 40;
+    // 3. 10-segment weekly set target meter (customizable) + Push/Pull/Legs balance gauge
+    const targetSets = Math.max(10, Number(getProfileSettings().weeklySetTarget) || 40);
     const fracEl = document.getElementById("dash-target-fraction");
     const meterEl = document.getElementById("dash-target-bars");
     if (fracEl) fracEl.textContent = `${totalSets} / ${targetSets} sets`;
@@ -2603,6 +2624,35 @@
       meterEl.innerHTML = Array.from({ length: 10 }, (_, i) =>
         `<div class="bento-seg-pill ${i < litCount ? "lit" : ""}"></div>`
       ).join("");
+    }
+
+    const pplEl = document.getElementById("dash-ppl-balance");
+    if (pplEl) {
+      const sumW = (keys) => keys.reduce((s, k) => s + (stats7[k]?.weightedSets || 0), 0);
+      const pushW = sumW(["chest", "front_delts", "side_delts", "triceps"]);
+      const pullW = sumW(["lats", "mid_back", "rear_delts", "traps", "biceps"]);
+      const legsW = sumW(["quads", "hamstrings", "glutes", "calves"]);
+      const pplTotal = pushW + pullW + legsW;
+      const pPct = pplTotal > 0 ? Math.round((pushW / pplTotal) * 100) : 34;
+      const lPct = pplTotal > 0 ? Math.round((pullW / pplTotal) * 100) : 33;
+      const gPct = pplTotal > 0 ? Math.max(0, 100 - pPct - lPct) : 33;
+      const fmtS = (v) => v.toFixed(1).replace(/\.0$/, "");
+      pplEl.innerHTML = `
+        <div class="ppl-head-row">
+          <span>Push / Pull / Legs (7D)</span>
+          <span>${pplTotal > 0 ? `${pPct}% · ${lPct}% · ${gPct}%` : "No sets"}</span>
+        </div>
+        <div class="ppl-bar-track" title="Push ${fmtS(pushW)}s · Pull ${fmtS(pullW)}s · Legs ${fmtS(legsW)}s">
+          <div class="ppl-seg-push" style="width:${pPct}%;"></div>
+          <div class="ppl-seg-pull" style="width:${lPct}%;"></div>
+          <div class="ppl-seg-legs" style="width:${gPct}%;"></div>
+        </div>
+        <div class="ppl-legend-row">
+          <span><strong style="color:#E3444D;">PUSH</strong> ${fmtS(pushW)}s</span>
+          <span><strong style="color:#A0A7AA;">PULL</strong> ${fmtS(pullW)}s</span>
+          <span><strong style="color:#C98A3A;">LEGS</strong> ${fmtS(legsW)}s</span>
+        </div>
+      `;
     }
 
     // 4. 7-day Mon–Sun activity strip
@@ -2664,7 +2714,7 @@
       const dash = (circ * pct).toFixed(1);
       const r2 = 25;
       const circ2 = 2 * Math.PI * r2;
-      const setPct = Math.min(1, totalSets / 40);
+      const setPct = Math.min(1, totalSets / targetSets);
       const dash2 = (circ2 * setPct).toFixed(1);
       ringEl.innerHTML = `
         <svg viewBox="0 0 88 88" width="88" height="88">
@@ -3054,8 +3104,15 @@
     const upperSets = sumSets(["chest", "front_delts", "side_delts", "rear_delts", "traps", "lats", "mid_back", "biceps", "triceps", "forearms"]);
     const lowerSets = sumSets(["quads", "hamstrings", "glutes", "calves"]);
 
+    const quadSets = stats.quads?.weightedSets || 0;
+    const hamSets = stats.hamstrings?.weightedSets || 0;
+
     const pushPullRatio = pullSets > 0 ? (pushSets / pullSets).toFixed(2) : pushSets > 0 ? "∞" : "—";
     const upperLowerRatio = lowerSets > 0 ? (upperSets / lowerSets).toFixed(2) : upperSets > 0 ? "∞" : "—";
+    const quadHamRatio = hamSets > 0 ? (quadSets / hamSets).toFixed(2) : quadSets > 0 ? "∞" : "—";
+
+    const ppPct = pushSets + pullSets > 0 ? Math.round((pushSets / (pushSets + pullSets)) * 100) : 50;
+    const ulPct = upperSets + lowerSets > 0 ? Math.round((upperSets / (upperSets + lowerSets)) * 100) : 50;
 
     const lowestMuscle = Object.entries(stats)
       .sort((a, b) => a[1].weightedSets - b[1].weightedSets)[0];
@@ -3067,13 +3124,16 @@
           <span class="kpi-label">Push / Pull Ratio</span>
           <strong class="kpi-value">${pushPullRatio}</strong>
           <span class="muted-note">${pushSets.toFixed(1).replace(/\.0$/, "")} vs ${pullSets.toFixed(1).replace(/\.0$/, "")} sets</span>
+          <div class="balance-bar-track"><div class="balance-bar-left" style="width:${ppPct}%"></div><div class="balance-bar-right" style="width:${100 - ppPct}%"></div></div>
         </div>
         <div class="kpi-box">
           <span class="kpi-label">Upper / Lower</span>
           <strong class="kpi-value">${upperLowerRatio}</strong>
           <span class="muted-note">${upperSets.toFixed(1).replace(/\.0$/, "")} vs ${lowerSets.toFixed(1).replace(/\.0$/, "")} sets</span>
+          <div class="balance-bar-track"><div class="balance-bar-left" style="width:${ulPct}%"></div><div class="balance-bar-right" style="width:${100 - ulPct}%"></div></div>
         </div>
       </div>
+      <div class="muted-note">Quad / Hamstring ratio: <strong>${quadHamRatio}</strong> (${quadSets.toFixed(1).replace(/\.0$/, "")} vs ${hamSets.toFixed(1).replace(/\.0$/, "")} sets)</div>
       ${
         lowestMuscle
           ? `<div class="muted-note">Least stimulated: <strong>${MUSCLES[lowestMuscle[0]]}</strong> (${lowestMuscle[1].weightedSets.toFixed(1).replace(/\.0$/, "")} sets)</div>`
@@ -4870,16 +4930,32 @@
       e.target.value = "";
     });
 
+    document.getElementById("btn-hero-scan-front")?.addEventListener("click", () => {
+      dashHeroSide = "front";
+      renderDashboard();
+    });
+    document.getElementById("btn-hero-scan-back")?.addEventListener("click", () => {
+      dashHeroSide = "back";
+      renderDashboard();
+    });
+    document.getElementById("btn-edit-set-target")?.addEventListener("click", () => {
+      openCustomizeDashboardModal();
+      setTimeout(() => document.getElementById("dash-weekly-set-target")?.focus(), 40);
+    });
     document.getElementById("btn-customize-dash").addEventListener("click", openCustomizeDashboardModal);
     document.getElementById("btn-save-dash-prefs").addEventListener("click", () => {
       const nextPrefs = {};
       document.querySelectorAll("[data-widget-pref]").forEach((cb) => {
         nextPrefs[cb.dataset.widgetPref] = cb.checked;
       });
+      const targetVal = Number(document.getElementById("dash-weekly-set-target")?.value);
+      if (targetVal >= 10 && targetVal <= 150) {
+        getProfileSettings().weeklySetTarget = Math.round(targetVal);
+      }
       state.dashboardPrefs[state.activeProfileId] = nextPrefs;
       saveState();
       closeModal("modal-customize-dash");
-      applyDashboardWidgetPrefs();
+      renderDashboard();
     });
 
     document.querySelectorAll(".dash-preset-btn").forEach((btn) => {

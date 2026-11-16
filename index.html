@@ -27,7 +27,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.4</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.5</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -81,55 +81,108 @@
                 </div>
               </div>
 
-              <button class="bento-hero-scan" type="button" data-nav="anatomy" aria-label="Open full Muscle Overview">
-                <svg id="dash-hero-scan-svg" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
-                  <g fill="#161A1E" stroke="#2B3135" stroke-width="1.2">
-                    <circle cx="100" cy="24" r="14" />
-                    <path d="M78 44 C60 48, 48 62, 44 92 L34 150 L48 154 L58 100 L64 148 L72 246 L90 246 L96 158 L104 158 L110 246 L128 246 L136 148 L142 100 L152 154 L166 150 L156 92 C152 62, 140 48, 122 44 Z" />
-                  </g>
-                  <g class="dash-mini-muscle" data-mini-muscle="chest" fill="#23282D">
-                    <path d="M72 62 C82 58, 96 60, 99 68 L99 84 C88 86, 74 84, 70 76 Z" />
-                    <path d="M128 62 C118 58, 104 60, 101 68 L101 84 C112 86, 126 84, 130 76 Z" />
-                  </g>
-                  <g class="dash-mini-muscle" data-mini-muscle="front_delts" fill="#23282D">
-                    <ellipse cx="64" cy="64" rx="9" ry="12" />
-                    <ellipse cx="136" cy="64" rx="9" ry="12" />
-                  </g>
-                  <g class="dash-mini-muscle" data-mini-muscle="abs" fill="#23282D">
-                    <rect x="88" y="88" width="24" height="42" rx="4" />
-                  </g>
-                  <g class="dash-mini-muscle" data-mini-muscle="biceps" fill="#23282D">
-                    <ellipse cx="56" cy="96" rx="6" ry="15" />
-                    <ellipse cx="144" cy="96" rx="6" ry="15" />
-                  </g>
-                  <g class="dash-mini-muscle" data-mini-muscle="quads" fill="#23282D">
-                    <path d="M72 154 L94 154 L90 206 L74 206 Z" />
-                    <path d="M106 154 L128 154 L126 206 L110 206 Z" />
-                  </g>
-                  <!-- Biometric scan rings & callout leader lines -->
-                  <g fill="none" stroke="rgba(227, 68, 77, 0.25)" stroke-width="0.8">
-                    <circle cx="100" cy="115" r="72" stroke-dasharray="3 4" />
-                    <line x1="16" y1="72" x2="68" y2="72" />
-                    <line x1="132" y1="108" x2="184" y2="108" />
-                    <line x1="18" y1="176" x2="72" y2="176" />
-                  </g>
-                  <g fill="#697277" font-family="IBM Plex Mono, monospace" font-size="7.5">
-                    <text x="16" y="69">PEC</text>
-                    <text x="164" y="105">CORE</text>
-                    <text x="18" y="173">QUAD</text>
-                  </g>
-                  <!-- Subtle biometric joint nodes -->
-                  <g fill="#E3444D" opacity="0.85">
-                    <circle cx="64" cy="64" r="2.2" />
-                    <circle cx="136" cy="64" r="2.2" />
-                    <circle cx="56" cy="108" r="1.8" />
-                    <circle cx="144" cy="108" r="1.8" />
-                    <circle cx="82" cy="198" r="2" />
-                    <circle cx="118" cy="198" r="2" />
-                  </g>
-                </svg>
-                <span class="bento-scan-hint">Open Full Scan &rarr;</span>
-              </button>
+              <div class="bento-hero-scan">
+                <div class="hero-scan-toggle" role="group" aria-label="Mini scan side">
+                  <button id="btn-hero-scan-front" class="hero-scan-side active" type="button">Front</button>
+                  <button id="btn-hero-scan-back" class="hero-scan-side" type="button">Rear</button>
+                </div>
+                <button class="bento-scan-trigger" type="button" data-nav="anatomy" aria-label="Open full Muscle Overview">
+                  <svg id="dash-hero-scan-svg" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="#161A1E" stroke="#2B3135" stroke-width="1.2">
+                      <circle cx="100" cy="23" r="11.5" />
+                      <path d="M92 34 L92 44 C78 47, 64 54, 58 76 L46 146 L55 148 L67 92 L78 128 L77 154 L78 184 L81 246 L93 246 L97 156 L103 156 L107 246 L119 246 L122 184 L123 154 L122 128 L133 92 L145 148 L154 146 L142 76 C136 54, 122 47, 108 44 L108 34 Z" />
+                    </g>
+                    <g id="dash-hero-front-group">
+                      <g class="dash-mini-muscle" data-mini-muscle="chest" fill="#23282D">
+                        <path d="M75 61 C84 58, 96 60, 99 67 L99 81 C89 83, 76 80, 73 73 Z" />
+                        <path d="M125 61 C116 58, 104 60, 101 67 L101 81 C111 83, 124 80, 127 73 Z" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="front_delts" fill="#23282D">
+                        <ellipse cx="67" cy="63" rx="6.5" ry="10.5" />
+                        <ellipse cx="133" cy="63" rx="6.5" ry="10.5" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="abs" fill="#23282D">
+                        <rect x="91" y="85" width="18" height="40" rx="3.5" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="biceps" fill="#23282D">
+                        <ellipse cx="60" cy="94" rx="4.5" ry="12.5" transform="rotate(9 60 94)" />
+                        <ellipse cx="140" cy="94" rx="4.5" ry="12.5" transform="rotate(-9 140 94)" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="quads" fill="#23282D">
+                        <path d="M80 156 L95 156 L92 204 L81 204 Z" />
+                        <path d="M120 156 L105 156 L108 204 L119 204 Z" />
+                      </g>
+                      <g fill="none" stroke="rgba(227, 68, 77, 0.25)" stroke-width="0.8">
+                        <circle cx="100" cy="115" r="66" stroke-dasharray="3 4" />
+                        <line x1="20" y1="70" x2="73" y2="70" />
+                        <line x1="118" y1="106" x2="180" y2="106" />
+                        <line x1="20" y1="176" x2="80" y2="176" />
+                      </g>
+                      <g fill="#697277" font-family="IBM Plex Mono, monospace" font-size="7.5">
+                        <text x="20" y="67">PEC</text>
+                        <text x="158" y="103">CORE</text>
+                        <text x="20" y="173">QUAD</text>
+                      </g>
+                    </g>
+                    <g id="dash-hero-back-group" class="hidden">
+                      <g class="dash-mini-muscle" data-mini-muscle="traps" fill="#23282D">
+                        <path d="M91 48 L109 48 L119 60 L100 78 L81 60 Z" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="rear_delts" fill="#23282D">
+                        <ellipse cx="68" cy="63" rx="6" ry="9.5" />
+                        <ellipse cx="132" cy="63" rx="6" ry="9.5" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="lats" fill="#23282D">
+                        <path d="M74 72 L92 84 L94 114 L80 112 Z" />
+                        <path d="M126 72 L108 84 L106 114 L120 112 Z" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="mid_back" fill="#23282D">
+                        <rect x="91" y="68" width="18" height="26" rx="3" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="lower_back" fill="#23282D">
+                        <rect x="90" y="98" width="20" height="24" rx="3" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="triceps" fill="#23282D">
+                        <ellipse cx="60" cy="94" rx="4.5" ry="12" transform="rotate(9 60 94)" />
+                        <ellipse cx="140" cy="94" rx="4.5" ry="12" transform="rotate(-9 140 94)" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="glutes" fill="#23282D">
+                        <path d="M79 128 C88 124, 96 128, 99 136 L99 154 C88 156, 78 150, 79 128 Z" />
+                        <path d="M121 128 C112 124, 104 128, 101 136 L101 154 C112 156, 122 150, 121 128 Z" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="hamstrings" fill="#23282D">
+                        <path d="M80 158 L95 158 L92 202 L81 202 Z" />
+                        <path d="M120 158 L105 158 L108 202 L119 202 Z" />
+                      </g>
+                      <g class="dash-mini-muscle" data-mini-muscle="calves" fill="#23282D">
+                        <ellipse cx="87" cy="222" rx="4.5" ry="14" />
+                        <ellipse cx="113" cy="222" rx="4.5" ry="14" />
+                      </g>
+                      <g fill="none" stroke="rgba(227, 68, 77, 0.25)" stroke-width="0.8">
+                        <circle cx="100" cy="115" r="66" stroke-dasharray="3 4" />
+                        <line x1="20" y1="86" x2="76" y2="86" />
+                        <line x1="120" y1="140" x2="180" y2="140" />
+                        <line x1="20" y1="180" x2="81" y2="180" />
+                      </g>
+                      <g fill="#697277" font-family="IBM Plex Mono, monospace" font-size="7.5">
+                        <text x="20" y="83">LATS</text>
+                        <text x="152" y="137">GLUTE</text>
+                        <text x="20" y="177">HAM</text>
+                      </g>
+                    </g>
+                    <!-- Subtle biometric joint nodes -->
+                    <g fill="#E3444D" opacity="0.85">
+                      <circle cx="67" cy="63" r="2.1" />
+                      <circle cx="133" cy="63" r="2.1" />
+                      <circle cx="58" cy="108" r="1.7" />
+                      <circle cx="142" cy="108" r="1.7" />
+                      <circle cx="87" cy="198" r="1.9" />
+                      <circle cx="113" cy="198" r="1.9" />
+                    </g>
+                  </svg>
+                  <span class="bento-scan-hint">Open Full Scan &rarr;</span>
+                </button>
+              </div>
 
               <div class="bento-hero-right">
                 <div id="dash-hero-wave" class="bento-hero-wave"></div>
@@ -179,10 +232,14 @@
                   <span class="eyebrow">04 // WEEKLY LOAD</span>
                   <h3>Set Target</h3>
                 </div>
-                <span id="dash-target-fraction" class="muted-note">0 / 40 sets</span>
+                <div class="btn-row" style="align-items:center;gap:6px;">
+                  <span id="dash-target-fraction" class="muted-note">0 / 40 sets</span>
+                  <button id="btn-edit-set-target" class="link-btn" type="button" title="Edit weekly set target">Edit</button>
+                </div>
               </div>
               <div id="dash-target-big" class="bento-target-big">0 <span class="muted-note">SETS LOGGED</span></div>
               <div id="dash-target-bars" class="bento-seg-meter"></div>
+              <div id="dash-ppl-balance" class="bento-ppl-balance"></div>
             </div>
 
             <div class="bento-panel bento-activity-card" data-dash-widget="recent">
@@ -1041,6 +1098,10 @@
         <button class="close-modal btn-icon" type="button" data-close="modal-customize-dash">&times;</button>
       </div>
       <div class="form-stack">
+        <label class="field">
+          <span>Weekly Set Target (7D)</span>
+          <input id="dash-weekly-set-target" class="input" type="number" min="10" max="150" step="5" value="40" />
+        </label>
         <p class="muted-note">Choose which widgets appear on your Training Home Overview.</p>
         <div id="customize-dash-list" class="card-stack"></div>
         <button id="btn-save-dash-prefs" class="btn btn-primary btn-full" type="button">Done</button>

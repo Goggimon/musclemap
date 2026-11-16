@@ -1,4 +1,4 @@
-const CACHE_NAME = "musclemap-v6.4";
+const CACHE_NAME = "musclemap-v6.5";
 const APP_SHELL = [
   "./",
   "./index.html",

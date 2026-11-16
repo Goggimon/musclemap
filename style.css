@@ -2147,3 +2147,108 @@ h3 {
   border: 1px solid rgba(43, 49, 53, 0.45);
   pointer-events: none;
 }
+
+/* ---------------- v6.5 HERO SCAN TOGGLE & PPL BALANCE GAUGE ---------------- */
+.hero-scan-toggle {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px;
+  background: rgba(11, 13, 15, 0.75);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.hero-scan-side {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.hero-scan-side.active {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
+.bento-scan-trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.bento-ppl-balance {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ppl-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ppl-bar-track {
+  display: flex;
+  height: 7px;
+  width: 100%;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.ppl-seg-push { background: #E3444D; }
+.ppl-seg-pull { background: #A0A7AA; }
+.ppl-seg-legs { background: #C98A3A; }
+
+.ppl-legend-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.balance-bar-track {
+  width: 100%;
+  height: 5px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+  display: flex;
+}
+
+.balance-bar-left {
+  background: var(--primary-bright);
+  height: 100%;
+}
+
+.balance-bar-right {
+  background: var(--text-secondary);
+  height: 100%;
+}
