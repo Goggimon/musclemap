@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0B0D0F" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>MUSCLEMAP — SYSTEM 01</title>
+  <title>MUSCLEMAP — Personal Coach & Training System</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -27,7 +27,9 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v6.5</button>
+        <span id="app-save-indicator" class="save-toast hidden" aria-live="polite">Saved</span>
+        <span id="app-offline-pill" class="offline-pill hidden">Offline</span>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v7.0</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -57,9 +59,23 @@
           </div>
         </div>
 
-        <!-- PRESET 1: OVERVIEW (BENTO GRID) -->
+        <!-- PRESET 1: OVERVIEW (TODAY COACH + SUPPORTING EVIDENCE) -->
         <div id="dash-preset-overview" class="dash-preset active">
           <div id="dash-recovery-banner" class="card recovery-banner hidden"></div>
+
+          <!-- V7.0 TODAY'S WORKOUT COACH HERO -->
+          <div id="dash-today-hero" class="bento-panel today-hero-card"></div>
+
+          <!-- V7.0 MY PLAN STRIP -->
+          <div id="dash-my-plan" class="bento-panel my-plan-strip hidden"></div>
+
+          <div id="dash-supporting-header" class="section-header" style="margin-top:16px;">
+            <div>
+              <span class="eyebrow" style="margin-bottom:2px;">Supporting Evidence</span>
+              <h2>Body Map &amp; Weekly Load</h2>
+            </div>
+            <button id="btn-setup-coach" class="btn btn-ghost btn-sm" type="button">Personalize Plan</button>
+          </div>
 
           <!-- ROW 1: HERO ANATOMY + WEEKLY STIMULUS CHART -->
           <div class="bento-row-top">
@@ -342,6 +358,7 @@
         <div class="anatomy-workspace">
         <div class="heatmap-stage">
           <p id="heatmap-window-summary" class="stage-hint">7-Day Stimulus · 0 workouts · Tap any muscle</p>
+          <p class="muted-note" style="font-size:11.5px;margin-bottom:8px;text-align:center;">Brighter regions show more hard working sets this week. Tap any muscle to see recovery &amp; best exercises.</p>
 
           <!-- FRONT ANATOMY SVG -->
           <svg id="svg-front" class="anatomy-svg active" viewBox="0 0 320 565" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Front anatomical muscle diagram">
@@ -533,17 +550,20 @@
       <!-- 3. WORKOUT & ROUTINES VIEW -->
       <section id="view-workout" class="view">
         <div id="workout-idle">
+          <div id="train-my-plan-box" class="card" style="margin-bottom:14px;"></div>
+
           <div class="hero-card compact">
-            <h2>Start Training</h2>
-            <p class="muted-note">Log sets, weights, and reps. Your muscle heatmap updates automatically on save.</p>
+            <h2>Start a Session</h2>
+            <p class="muted-note">Follow your plan above, pick a split below, or log a freeform session.</p>
             <div class="btn-row">
-              <button id="btn-start-blank" class="btn btn-primary" type="button">+ Blank Workout</button>
+              <button id="btn-start-blank" class="btn btn-secondary" type="button">+ Blank Workout</button>
               <button id="btn-new-routine" class="btn btn-secondary" type="button">+ New Routine</button>
+              <button id="btn-train-setup-plan" class="btn btn-ghost" type="button">Edit Plan</button>
             </div>
           </div>
 
           <div class="section-header">
-            <h2>Recommended Muscle-Group Days</h2>
+            <h2>Recommended Splits</h2>
           </div>
           <div id="workout-recommendations-list" class="card-stack"></div>
 
@@ -557,13 +577,19 @@
           <div class="active-header card">
             <div class="active-meta">
               <input id="workout-title-input" class="title-input" type="text" value="Evening Session" placeholder="Workout Name" />
+              <span id="workout-progress-pill" class="badge badge-secondary">0 / 0 sets</span>
               <span id="workout-autosave-status" class="autosave-pill">Autosaved</span>
               <span id="workout-timer" class="timer-badge">00:00</span>
             </div>
-            <div class="btn-row">
-              <button id="btn-open-plate-calc" class="btn btn-secondary btn-sm" type="button">Plate Calc</button>
-              <button id="btn-discard-workout" class="btn btn-danger-ghost btn-sm" type="button">Discard</button>
-              <button id="btn-finish-workout" class="btn btn-primary btn-sm" type="button">Finish &amp; Save</button>
+            <div class="btn-row" style="justify-content:space-between;align-items:center;">
+              <div class="btn-row">
+                <button id="btn-unit-toggle" class="btn btn-ghost btn-sm" type="button" title="Toggle kg / lb">Unit: KG</button>
+                <button id="btn-open-plate-calc" class="btn btn-secondary btn-sm" type="button">Plate Calc</button>
+              </div>
+              <div class="btn-row">
+                <button id="btn-discard-workout" class="btn btn-danger-ghost btn-sm" type="button">Discard</button>
+                <button id="btn-finish-workout" class="btn btn-primary btn-sm" type="button">Finish &amp; Save</button>
+              </div>
             </div>
             <div class="rest-bar">
               <div class="rest-status-group">
@@ -579,6 +605,14 @@
                 <button class="rest-btn" type="button" data-rest="180">180s</button>
                 <button id="btn-rest-stop" class="rest-btn hidden" type="button">Stop</button>
               </div>
+            </div>
+          </div>
+          <div id="floating-rest-bar" class="floating-rest-bar hidden" role="status" aria-live="polite">
+            <span id="floating-rest-label" class="floating-rest-time">Rest 01:30</span>
+            <div class="btn-row" style="gap:6px;">
+              <button id="btn-float-rest-minus" class="rest-btn" type="button">-15s</button>
+              <button id="btn-float-rest-plus" class="rest-btn" type="button">+15s</button>
+              <button id="btn-float-rest-stop" class="rest-btn" type="button">Skip</button>
             </div>
           </div>
 
@@ -611,6 +645,7 @@
 
         <!-- Subtab: Charts -->
         <div id="tab-charts" class="analytics-panel active">
+          <div id="analytics-insights-row" class="insights-strip" style="grid-column: 1 / -1;"></div>
           <div class="card chart-card">
             <div class="card-head">
               <h3>Muscle Stimulus Distribution</h3>
@@ -979,6 +1014,28 @@
         </div>
         <div class="divider"></div>
         <div class="field">
+          <span>Coach &amp; Display Preferences</span>
+          <div class="grid-2">
+            <label class="field">
+              <span>Weight Unit</span>
+              <select id="pref-unit-select" class="input">
+                <option value="kg">Kilograms (kg)</option>
+                <option value="lb">Pounds (lb)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Visual Tone</span>
+              <select id="pref-tone-select" class="input">
+                <option value="system">System (Crimson)</option>
+                <option value="calm">Calm (Sage)</option>
+                <option value="sport">Sport (Amber)</option>
+              </select>
+            </label>
+          </div>
+          <button id="btn-open-onboarding-from-profile" class="btn btn-secondary btn-sm" type="button" style="margin-top:4px;">Personalize My Plan (Coach Setup)</button>
+        </div>
+        <div class="divider"></div>
+        <div class="field">
           <span>Backup &amp; Device Transfer (JSON)</span>
           <p class="muted-note">Data stays in LocalStorage on this browser. Export JSON to move your data to another device.</p>
           <div class="btn-row">
@@ -1121,6 +1178,15 @@
         <button class="close-modal btn-icon" type="button" data-close="modal-workout-summary">&times;</button>
       </div>
       <div id="summary-modal-body" class="form-stack"></div>
+      <div id="summary-reflection-box" class="reflection-box hidden">
+        <span class="eyebrow" style="margin-bottom:6px;">How did this session feel?</span>
+        <div class="btn-row" id="summary-reflection-btns">
+          <button class="btn btn-secondary btn-sm" type="button" data-reflect="easy">Too Easy</button>
+          <button class="btn btn-secondary btn-sm" type="button" data-reflect="good">Just Right</button>
+          <button class="btn btn-secondary btn-sm" type="button" data-reflect="hard">Too Hard</button>
+        </div>
+        <p id="summary-reflection-note" class="muted-note" style="margin-top:6px;"></p>
+      </div>
       <div class="btn-row" style="margin-top:14px;">
         <button id="btn-download-summary-png" class="btn btn-primary" type="button" style="flex:1;">Download PNG Card</button>
         <button id="btn-summary-open-map" class="btn btn-secondary" type="button">Open Muscle Map</button>
@@ -1139,6 +1205,79 @@
         <button class="close-modal btn-icon" type="button" data-close="modal-changelog">&times;</button>
       </div>
       <div id="changelog-list" class="card-stack"></div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: V7.0 Personal Coach Onboarding -->
+  <div id="modal-onboarding" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow" style="margin-bottom:2px;">COACH SETUP</span>
+          <h3 id="onboarding-title">Build Your Starting Plan</h3>
+          <span class="muted-note">Tell us how you train and we’ll set up your weekly schedule.</span>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-onboarding">&times;</button>
+      </div>
+      <form id="form-onboarding" class="form-stack">
+        <div class="grid-2">
+          <label class="field">
+            <span>Primary Goal</span>
+            <select id="ob-goal" class="input">
+              <option value="Build Muscle">Build Muscle</option>
+              <option value="Get Stronger">Get Stronger</option>
+              <option value="Lose Fat">Lose Fat</option>
+              <option value="General Fitness">General Fitness</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Experience</span>
+            <select id="ob-experience" class="input">
+              <option value="Beginner">Beginner (0–6 mo)</option>
+              <option value="Returning">Returning</option>
+              <option value="Intermediate">Intermediate</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Days / Week</span>
+            <select id="ob-days" class="input">
+              <option value="2">2 Days / Week (Full Body)</option>
+              <option value="3" selected>3 Days / Week (Full Body)</option>
+              <option value="4">4 Days / Week (Upper / Lower)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Session Length</span>
+            <select id="ob-duration" class="input">
+              <option value="30">~30 minutes</option>
+              <option value="45" selected>~45 minutes</option>
+              <option value="60">~60 minutes</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Equipment Access</span>
+            <select id="ob-equipment" class="input">
+              <option value="full_gym">Full Gym (Machines, Barbells, DBs)</option>
+              <option value="dumbbells">Dumbbells at Home</option>
+              <option value="bodyweight">Bodyweight / Minimal</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Visual Tone</span>
+            <select id="ob-tone" class="input">
+              <option value="system">System (Crimson)</option>
+              <option value="calm">Calm (Sage)</option>
+              <option value="sport">Sport (Amber)</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>Movement Limitations (Optional)</span>
+          <input id="ob-limitations" class="input" type="text" placeholder="e.g., avoid deep squats, shoulder-friendly..." />
+        </label>
+        <button class="btn btn-primary btn-full" type="submit">Generate My Plan</button>
+      </form>
     </div>
   </div>
 

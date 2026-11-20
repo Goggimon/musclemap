@@ -2252,3 +2252,224 @@ h3 {
   background: var(--text-secondary);
   height: 100%;
 }
+
+/* ---------------- V7.0 TONES, TODAY COACH, FOCUSED WORKOUT & INSIGHTS ---------------- */
+:root {
+  --recovery: #3D9970;
+  --info: #788491;
+  --ease-ui: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html[data-tone="calm"] {
+  --primary: #3D9970;
+  --primary-bright: #52B788;
+  --primary-glow: rgba(61, 153, 112, 0.16);
+}
+
+html[data-tone="sport"] {
+  --primary: #D97706;
+  --primary-bright: #F59E0B;
+  --primary-glow: rgba(217, 119, 6, 0.16);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--primary-bright);
+  outline-offset: 2px;
+}
+
+.save-toast {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--recovery);
+  background: rgba(61, 153, 112, 0.14);
+  border: 1px solid rgba(61, 153, 112, 0.35);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: opacity 0.2s var(--ease-ui);
+}
+
+.offline-pill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--warning);
+  background: rgba(201, 138, 58, 0.14);
+  border: 1px solid rgba(201, 138, 58, 0.35);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.today-hero-card {
+  margin-bottom: 14px;
+  padding: 22px;
+  border-color: rgba(240, 241, 241, 0.12);
+  transition: transform 0.22s var(--ease-ui), border-color 0.22s var(--ease-ui);
+}
+
+.today-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (min-width: 760px) {
+  .today-hero-grid {
+    grid-template-columns: 1.35fr 0.85fr;
+  }
+}
+
+.today-ex-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.today-ex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(11, 13, 15, 0.52);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.today-ex-reason {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.today-cta-box {
+  background: rgba(11, 13, 15, 0.62);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-plan-strip {
+  margin-bottom: 14px;
+  padding: 14px 18px;
+}
+
+.plan-days-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.plan-day-pill {
+  flex: 1 1 130px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.18s var(--ease-ui), background 0.18s var(--ease-ui);
+}
+
+.plan-day-pill.next-day {
+  border-color: var(--primary-bright);
+  background: var(--primary-glow);
+}
+
+.plan-day-pill.done-day {
+  border-color: rgba(61, 153, 112, 0.55);
+}
+
+/* Focused Active Workout Mode */
+body.workout-focused .bottom-nav {
+  opacity: 0.72;
+}
+
+.ex-reason-line {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+.inline-cue-bar {
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(11, 13, 15, 0.55);
+  border-left: 2px solid var(--recovery);
+  padding: 6px 10px;
+  border-radius: 3px;
+}
+
+.set-row.warmup-row {
+  background: rgba(201, 138, 58, 0.08);
+  border-radius: 4px;
+  padding: 3px 4px;
+}
+
+.floating-rest-bar {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: rgba(17, 20, 22, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--primary-bright);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: sysFade 0.2s var(--ease-ui);
+}
+
+@media (min-width: 960px) {
+  .floating-rest-bar {
+    bottom: 20px;
+  }
+}
+
+.floating-rest-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-bright);
+  white-space: nowrap;
+}
+
+.insights-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.insight-card {
+  background: rgba(17, 20, 22, 0.88);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--info);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.insight-card.positive {
+  border-left-color: var(--recovery);
+}
+
+.insight-card.attention {
+  border-left-color: var(--warning);
+}
+
+.reflection-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 12px;
+}

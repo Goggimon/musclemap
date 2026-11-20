@@ -1,10 +1,20 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v6.5";
+  const APP_VERSION = "v7.0";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v7.0",
+      date: "2026-11-20",
+      items: [
+        "Personal Coach Onboarding: builds a tailored 2–4 day plan (Full Body, Upper/Lower, or Dumbbell-at-Home) with System / Calm / Sport visual tones",
+        "Today-First Home: leads with Today's Workout, plain-language context, My Plan adherence strip, and a clean empty-state preview before your first session",
+        "Focused Active Workout Mode: inline form cues, plain-language progression targets, warm-up vs working set separation, remembered bench/pin settings, kg/lb toggle, and floating rest timer",
+        "Coach Insights & Gentle Balance Guidance: post-workout difficulty reflection, weekly insight cards in Stats, and plain-language muscle map cues"
+      ]
+    },
     {
       version: "v6.5",
       date: "2026-11-16",
@@ -801,8 +811,20 @@
         u2: { age: "", heightCm: "", weightKg: "", targetWeightKg: "", goal: "Hypertrophy", level: "Intermediate" }
       },
       settings: {
-        u1: { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 },
-        u2: { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 }
+        u1: {
+          autoRest: true, defaultRestSec: 90, weeklySetTarget: 40,
+          unit: "kg", tone: "system", equipment: "full_gym",
+          daysPerWeek: 3, sessionMinutes: 45, experience: "Beginner",
+          goal: "Build Muscle", limitations: "", onboardingDone: false,
+          plan: null, exerciseSettings: {}, hardStreak: 0
+        },
+        u2: {
+          autoRest: true, defaultRestSec: 90, weeklySetTarget: 40,
+          unit: "kg", tone: "system", equipment: "full_gym",
+          daysPerWeek: 3, sessionMinutes: 45, experience: "Beginner",
+          goal: "Build Muscle", limitations: "", onboardingDone: false,
+          plan: null, exerciseSettings: {}, hardStreak: 0
+        }
       },
       dashboardPrefs: {
         u1: { session: true, kpis: true, recommended: true, streak: true, quick_links: true, recent: true },
@@ -898,6 +920,16 @@
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     updateAutosaveIndicator();
+    showSavedToast();
+  }
+
+  let saveToastTimer = null;
+  function showSavedToast() {
+    const el = document.getElementById("app-save-indicator");
+    if (!el) return;
+    el.classList.remove("hidden");
+    if (saveToastTimer) clearTimeout(saveToastTimer);
+    saveToastTimer = setTimeout(() => el.classList.add("hidden"), 1600);
   }
 
   function updateAutosaveIndicator() {
@@ -910,8 +942,49 @@
     pill.textContent = `Autosaved · ${t}`;
   }
 
+  function applyVisualTone() {
+    const tone = getProfileSettings().tone || "system";
+    document.documentElement.dataset.tone = tone;
+  }
+
+  function getUnit() {
+    return getProfileSettings().unit === "lb" ? "lb" : "kg";
+  }
+
+  function kgToDisplay(kg) {
+    const n = Number(kg) || 0;
+    if (getUnit() === "lb") return Math.round(n * 2.20462 * 2) / 2;
+    return Math.round(n * 10) / 10;
+  }
+
+  function displayToKg(val) {
+    const n = Number(val) || 0;
+    if (getUnit() === "lb") return Math.round((n / 2.20462) * 100) / 100;
+    return n;
+  }
+
+  function fmtWt(kg) {
+    const u = getUnit();
+    const val = kgToDisplay(kg);
+    return `${val} ${u}`;
+  }
+
+  function updateOfflineStatus() {
+    const pill = document.getElementById("app-offline-pill");
+    if (!pill) return;
+    pill.classList.toggle("hidden", navigator.onLine !== false);
+  }
+
   function getProfileSettings(profileId = state.activeProfileId) {
-    if (!state.settings[profileId]) state.settings[profileId] = { autoRest: true, defaultRestSec: 90, weeklySetTarget: 40 };
+    if (!state.settings[profileId]) {
+      state.settings[profileId] = {
+        autoRest: true, defaultRestSec: 90, weeklySetTarget: 40,
+        unit: "kg", tone: "system", equipment: "full_gym",
+        daysPerWeek: 3, sessionMinutes: 45, experience: "Beginner",
+        goal: "Build Muscle", limitations: "", onboardingDone: false,
+        plan: null, exerciseSettings: {}, hardStreak: 0
+      };
+    }
     return state.settings[profileId];
   }
 
@@ -978,6 +1051,145 @@
     const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
     const s = String(totalSec % 60).padStart(2, "0");
     return `${m}:${s}`;
+  }
+
+
+  /* ---------------- V7.0 COACH PROGRAM ENGINE & BEGINNER REASONS ---------------- */
+  const EXERCISE_WHY = {
+    ex_bench: "Builds pressing strength across your chest, shoulders, and triceps.",
+    ex_db_bench: "Strengthens chest and stabilizers with a shoulder-friendly arc.",
+    ex_incline_db: "Targets upper chest and front shoulders for balanced pressing.",
+    ex_pushup: "Foundational bodyweight press for chest, triceps, and core control.",
+    ex_lat_pulldown: "Builds pulling strength for your lats and upper back.",
+    ex_pullup: "Classic vertical pull for upper-back width and arm strength.",
+    ex_cable_row: "Strengthens mid-back posture muscles and lats.",
+    ex_db_single_row: "Builds a stronger back one side at a time to fix imbalances.",
+    ex_squat: "Primary lower-body builder for quads, glutes, and core stability.",
+    ex_goblet_squat: "Beginner-friendly squat pattern for legs, glutes, and upright posture.",
+    ex_leg_press: "Builds quad and glute strength with lower-back support.",
+    ex_rdl: "Strengthens hamstrings, glutes, and posterior-chain hinge mechanics.",
+    ex_db_rdl: "Teaches hip-hinge strength for hamstrings and glutes.",
+    ex_leg_curl: "Isolates hamstrings to balance knee strength and protect joints.",
+    ex_ohp: "Builds overhead shoulder strength and torso stability.",
+    ex_db_shoulder: "Presses overhead with natural joint alignment.",
+    ex_lat_raise: "Targets side delts for shoulder width and stability.",
+    ex_face_pull: "Supports healthy shoulders, rear delts, and upper-back posture.",
+    ex_db_curl: "Direct bicep strength for pulling and arm balance.",
+    ex_bb_curl: "Classic bicep builder with straightforward progression.",
+    ex_pushdown: "Isolates triceps to support pressing strength.",
+    ex_hanging_raise: "Strengthens lower abs and grip.",
+    ex_cable_crunch: "Controlled core flexion you can progress gradually."
+  };
+
+  function getExerciseWhy(exId) {
+    if (EXERCISE_WHY[exId]) return EXERCISE_WHY[exId];
+    const ex = getExerciseById(exId);
+    if (!ex) return "Supports balanced strength and muscle development.";
+    const p = (ex.primary || []).map((m) => MUSCLES[m] || m).join(" & ");
+    return `Targets ${p} with controlled ${ex.equipment.toLowerCase()} resistance.`;
+  }
+
+  function generatePlanFromPrefs(prefs) {
+    const days = Number(prefs.daysPerWeek) || 3;
+    const equip = prefs.equipment || "full_gym";
+    const mins = Number(prefs.sessionMinutes) || 45;
+    const limitCount = mins <= 30 ? 4 : mins >= 60 ? 6 : 5;
+
+    let planName = "Full Body 3×";
+    let dayTemplates = [];
+
+    if (equip === "dumbbells") {
+      planName = `Dumbbell at Home (${days}×)`;
+      dayTemplates = [
+        { title: "Full Body A (Dumbbell)", focus: "Squat, Push & Row", exIds: ["ex_goblet_squat", "ex_db_bench", "ex_db_single_row", "ex_db_shoulder", "ex_db_curl", "ex_db_calf"] },
+        { title: "Full Body B (Dumbbell)", focus: "Hinge, Incline & Arms", exIds: ["ex_db_rdl", "ex_incline_db", "ex_db_chest_row", "ex_lat_raise", "ex_db_oh_ext", "ex_db_lunge"] },
+        { title: "Full Body C (Dumbbell)", focus: "Split Legs, Press & Core", exIds: ["ex_db_split_squat", "ex_db_bench", "ex_db_single_row", "ex_db_rear_fly", "ex_hammer_curl", "ex_db_rdl"] }
+      ];
+    } else if (equip === "bodyweight") {
+      planName = `Bodyweight & Minimal (${days}×)`;
+      dayTemplates = [
+        { title: "Full Body A (Minimal)", focus: "Push, Pull & Core", exIds: ["ex_pushup", "ex_pullup", "ex_dips", "ex_hanging_raise", "ex_goblet_squat"] },
+        { title: "Full Body B (Minimal)", focus: "Control & Volume", exIds: ["ex_dips", "ex_pullup", "ex_pushup", "ex_hanging_raise", "ex_db_lunge"] }
+      ];
+    } else if (days === 4) {
+      planName = "Upper / Lower 4×";
+      dayTemplates = [
+        { title: "Upper Body A", focus: "Chest, Back & Shoulders", exIds: ["ex_bench", "ex_lat_pulldown", "ex_db_shoulder", "ex_cable_row", "ex_pushdown", "ex_face_pull"] },
+        { title: "Lower Body A", focus: "Quads, Hamstrings & Calves", exIds: ["ex_squat", "ex_rdl", "ex_leg_press", "ex_leg_curl", "ex_calf_raise", "ex_cable_crunch"] },
+        { title: "Upper Body B", focus: "Incline, Rows & Arms", exIds: ["ex_incline_db", "ex_cable_row", "ex_lat_raise", "ex_lat_pulldown", "ex_db_curl", "ex_pushdown"] },
+        { title: "Lower Body B", focus: "Hinge, Glutes & Quads", exIds: ["ex_hip_thrust", "ex_leg_press", "ex_leg_curl", "ex_leg_ext", "ex_calf_raise", "ex_hanging_raise"] }
+      ];
+    } else if (days === 2) {
+      planName = "Full Body 2×";
+      dayTemplates = [
+        { title: "Full Body A", focus: "Squat, Press & Pull", exIds: ["ex_leg_press", "ex_db_bench", "ex_lat_pulldown", "ex_db_shoulder", "ex_leg_curl", "ex_cable_crunch"] },
+        { title: "Full Body B", focus: "Hinge, Incline & Row", exIds: ["ex_db_rdl", "ex_incline_db", "ex_cable_row", "ex_lat_raise", "ex_db_curl", "ex_pushdown"] }
+      ];
+    } else {
+      planName = "Full Body 3×";
+      dayTemplates = [
+        { title: "Full Body A", focus: "Legs, Push & Pull", exIds: ["ex_squat", "ex_db_bench", "ex_lat_pulldown", "ex_lat_raise", "ex_db_curl", "ex_cable_crunch"] },
+        { title: "Full Body B", focus: "Hinge, Press & Row", exIds: ["ex_rdl", "ex_incline_db", "ex_cable_row", "ex_face_pull", "ex_pushdown", "ex_calf_raise"] },
+        { title: "Full Body C", focus: "Leg Press, Chest & Back", exIds: ["ex_leg_press", "ex_chest_press_mach", "ex_lat_pulldown", "ex_db_shoulder", "ex_leg_curl", "ex_hanging_raise"] }
+      ];
+    }
+
+    const daysList = dayTemplates.slice(0, days).map((d, idx) => ({
+      id: `plan_d${idx}`,
+      label: `Day ${String.fromCharCode(65 + idx)}`,
+      title: d.title,
+      focus: d.focus,
+      exercises: d.exIds.slice(0, limitCount).filter((id) => getExerciseById(id))
+    }));
+
+    return {
+      name: planName,
+      daysPerWeek: days,
+      estimatedMinutes: mins,
+      currentDayIdx: 0,
+      days: daysList
+    };
+  }
+
+  function ensurePlanExists() {
+    const s = getProfileSettings();
+    if (!s.plan || !s.plan.days || !s.plan.days.length) {
+      s.plan = generatePlanFromPrefs(s);
+    }
+    return s.plan;
+  }
+
+  function startPlanDay(dayIdx) {
+    const plan = ensurePlanExists();
+    const day = plan.days[dayIdx] || plan.days[0];
+    if (!day) return;
+    plan.currentDayIdx = dayIdx;
+    state.activeWorkouts[state.activeProfileId] = {
+      id: uid("wk"),
+      title: day.title,
+      planDayIdx: dayIdx,
+      startedAt: new Date().toISOString(),
+      exercises: day.exercises.map((id, idx) => {
+        const overload = getOverloadSuggestion(id);
+        const w = overload && overload.weight > 0 ? String(kgToDisplay(overload.weight)) : "";
+        const r = overload ? String(overload.reps) : "10";
+        const sets = idx === 0
+          ? [
+              { weight: w ? String(Math.max(5, Math.round(Number(w) * 0.6))) : "", reps: "8", type: "W", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false }
+            ]
+          : [
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false }
+            ];
+        return { exerciseId: id, sets };
+      })
+    };
+    saveState();
+    switchView("workout");
   }
 
   /* ---------------- BODY-GATED EXERCISE WEIGHT TIERS ---------------- */
@@ -2038,18 +2250,26 @@
     if (!disp || !stopBtn) return;
 
     const remainingSec = restEndsAt > Date.now() ? Math.ceil((restEndsAt - Date.now()) / 1000) : 0;
+    const floatBar = document.getElementById("floating-rest-bar");
+    const floatLbl = document.getElementById("floating-rest-label");
     if (remainingSec > 0) {
-      disp.textContent = `Rest: ${formatDuration(remainingSec * 1000)}`;
+      const txt = formatDuration(remainingSec * 1000);
+      disp.textContent = `Rest: ${txt}`;
       disp.style.color = "var(--primary)";
       stopBtn.classList.remove("hidden");
       minusBtn?.classList.remove("hidden");
       plusBtn?.classList.remove("hidden");
+      if (floatBar && floatLbl) {
+        floatLbl.textContent = `Rest ${txt}`;
+        floatBar.classList.remove("hidden");
+      }
     } else {
       disp.textContent = "Rest: Ready";
       disp.style.color = "";
       stopBtn.classList.add("hidden");
       minusBtn?.classList.add("hidden");
       plusBtn?.classList.add("hidden");
+      floatBar?.classList.add("hidden");
     }
   }
 
@@ -2184,18 +2404,19 @@
 
       const lastW = Number(topSet.weight) || 0;
       const lastR = Number(topSet.reps) || 0;
-      if (lastW > 0 && lastR >= 10) {
+      if (lastW > 0 && lastR >= 12) {
         return {
           weight: Number((lastW + 2.5).toFixed(2)),
           reps: 8,
-          label: `Target: ${lastW + 2.5} kg × 8 (+2.5 kg)`
+          label: `Last: ${fmtWt(lastW)} × ${lastR} · Ready for ${fmtWt(lastW + 2.5)} × 8`
         };
       }
       if (lastW > 0) {
+        const nextR = Math.min(12, lastR + 1);
         return {
           weight: lastW,
-          reps: lastR + 1,
-          label: `Target: ${lastW} kg × ${lastR + 1} (+1 rep)`
+          reps: nextR,
+          label: `Last: ${fmtWt(lastW)} × ${lastR} · Try ${fmtWt(lastW)} × ${nextR} (at 12, add 2.5 kg)`
         };
       }
       return {
@@ -2379,7 +2600,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v6.5)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v7.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -2477,6 +2698,11 @@
       .join("");
 
     document.getElementById("rename-profile-input").value = getActiveProfile().name;
+    const sObj = getProfileSettings();
+    const uSel = document.getElementById("pref-unit-select");
+    const tSel = document.getElementById("pref-tone-select");
+    if (uSel) uSel.value = sObj.unit || "kg";
+    if (tSel) tSel.value = sObj.tone || "system";
 
     list.querySelectorAll("[data-switch-profile]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -2789,6 +3015,114 @@
     }
   }
 
+  function renderTodayCoach(profile, allWorkouts, recent7) {
+    const heroEl = document.getElementById("dash-today-hero");
+    const planEl = document.getElementById("dash-my-plan");
+    if (!heroEl) return;
+
+    const s = getProfileSettings(profile.id);
+    const plan = ensurePlanExists();
+    const active = getActiveWorkout();
+    const dayIdx = (plan.currentDayIdx || 0) % plan.days.length;
+    const todayDay = plan.days[dayIdx] || plan.days[0];
+    const daysGoal = plan.daysPerWeek || 3;
+
+    let contextLine = `Your only goal this week is to show up ${daysGoal} times.`;
+    if (allWorkouts.length > 0) {
+      const lastW = allWorkouts[0];
+      const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(lastW.endedAt).getTime()) / (24 * 60 * 60 * 1000)));
+      const agoStr = daysAgo === 0 ? "earlier today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+      contextLine = `You trained ${lastW.title} ${agoStr} — today is ${todayDay.title}.`;
+    }
+
+    const exPreviewHtml = todayDay.exercises.slice(0, 5).map((id) => {
+      const ex = getExerciseById(id);
+      if (!ex) return "";
+      return `
+        <div class="today-ex-row">
+          <div>
+            <strong>${escapeHtml(ex.name)}</strong>
+            <div class="today-ex-reason">${escapeHtml(getExerciseWhy(id))}</div>
+          </div>
+          <span class="badge badge-secondary">${escapeHtml(ex.equipment)}</span>
+        </div>`;
+    }).join("");
+
+    const emptyNotice = allWorkouts.length === 0
+      ? `<div class="muted-note" style="margin-top:8px;color:var(--recovery);">Complete your first workout to unlock your live muscle map &amp; progress insights.</div>`
+      : "";
+
+    heroEl.innerHTML = `
+      <div class="today-hero-grid">
+        <div>
+          <span class="eyebrow">TODAY'S WORKOUT · ${escapeHtml(plan.name)}</span>
+          <h2 style="font-size:22px;margin-bottom:4px;">${active ? escapeHtml(active.title || "Active Session") : escapeHtml(todayDay.title)}</h2>
+          <p class="muted-note">${escapeHtml(contextLine)}</p>
+          ${emptyNotice}
+          <div class="today-ex-list">${exPreviewHtml}</div>
+        </div>
+        <div class="today-cta-box">
+          <div class="card-head">
+            <span class="kpi-label">Estimated Time</span>
+            <strong style="font-family:var(--font-mono);">~${s.sessionMinutes || 45} min</strong>
+          </div>
+          <div class="card-head">
+            <span class="kpi-label">This Week</span>
+            <strong style="font-family:var(--font-mono);">${recent7.length} / ${daysGoal} sessions</strong>
+          </div>
+          <div class="card-head">
+            <span class="kpi-label">Focus</span>
+            <span class="muted-note">${escapeHtml(todayDay.focus)}</span>
+          </div>
+          <button id="btn-today-start" class="btn btn-primary btn-full" type="button">
+            ${active ? "Resume Active Workout →" : `Start ${escapeHtml(todayDay.label)} →`}
+          </button>
+          <button id="btn-today-swap-day" class="btn btn-ghost btn-sm" type="button">
+            Switch to another plan day
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("btn-today-start")?.addEventListener("click", () => {
+      if (getActiveWorkout()) switchView("workout");
+      else startPlanDay(dayIdx);
+    });
+    document.getElementById("btn-today-swap-day")?.addEventListener("click", () => {
+      plan.currentDayIdx = (dayIdx + 1) % plan.days.length;
+      saveState();
+      renderDashboard();
+    });
+
+    if (planEl) {
+      planEl.classList.remove("hidden");
+      planEl.innerHTML = `
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">MY PLAN · ${escapeHtml(plan.name)}</span>
+            <strong>${recent7.length} of ${daysGoal} workouts completed this week</strong>
+          </div>
+          <button id="btn-plan-edit" class="link-btn" type="button">Customize Plan</button>
+        </div>
+        <div class="plan-days-row">
+          ${plan.days.map((d, idx) => `
+            <button class="plan-day-pill ${idx === dayIdx ? "next-day" : ""}" type="button" data-start-plan-day="${idx}">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>${escapeHtml(d.label)}</strong>
+                ${idx === dayIdx ? '<span class="badge badge-primary">Up Next</span>' : '<span class="muted-note">Start</span>'}
+              </div>
+              <div class="muted-note" style="margin-top:3px;">${escapeHtml(d.title)}</div>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      document.getElementById("btn-plan-edit")?.addEventListener("click", openOnboardingModal);
+      planEl.querySelectorAll("[data-start-plan-day]").forEach((btn) => {
+        btn.addEventListener("click", () => startPlanDay(Number(btn.dataset.startPlanDay)));
+      });
+    }
+  }
+
   function renderDashboard() {
     const profile = getActiveProfile();
     document.getElementById("dash-greeting").textContent = `Hey, ${profile.name}`;
@@ -2844,6 +3178,7 @@
       });
     });
 
+    renderTodayCoach(profile, allWorkouts, recent7);
     document.getElementById("kpi-workouts-7d").textContent = String(recent7.length);
     document.getElementById("kpi-volume-7d").textContent = `${Math.round(totalVol).toLocaleString()} kg`;
     document.getElementById("kpi-sets-7d").textContent = String(totalSets);
@@ -3135,8 +3470,12 @@
       </div>
       <div class="muted-note">Quad / Hamstring ratio: <strong>${quadHamRatio}</strong> (${quadSets.toFixed(1).replace(/\.0$/, "")} vs ${hamSets.toFixed(1).replace(/\.0$/, "")} sets)</div>
       ${
-        lowestMuscle
-          ? `<div class="muted-note">Least stimulated: <strong>${MUSCLES[lowestMuscle[0]]}</strong> (${lowestMuscle[1].weightedSets.toFixed(1).replace(/\.0$/, "")} sets)</div>`
+        pushSets > pullSets * 1.4 && pushSets >= 3
+          ? `<div class="muted-note" style="color:var(--recovery);">Coach tip: You've done more push than pull this week — add a row or pulldown next session.</div>`
+          : pullSets > pushSets * 1.4 && pullSets >= 3
+          ? `<div class="muted-note" style="color:var(--recovery);">Coach tip: Strong pulling week — balance it with a chest or shoulder press next session.</div>`
+          : lowestMuscle
+          ? `<div class="muted-note">Least stimulated this window: <strong>${MUSCLES[lowestMuscle[0]]}</strong> (${lowestMuscle[1].weightedSets.toFixed(1).replace(/\.0$/, "")} sets)</div>`
           : ""
       }
     `;
@@ -3488,18 +3827,54 @@
     }
 
     if (!active) {
+      document.body.classList.remove("workout-focused");
       releaseWakeLock();
       stopRestTimer(false);
       idleEl.classList.remove("hidden");
       activeEl.classList.add("hidden");
+      const planBox = document.getElementById("train-my-plan-box");
+      if (planBox) {
+        const plan = ensurePlanExists();
+        const dayIdx = (plan.currentDayIdx || 0) % plan.days.length;
+        planBox.innerHTML = `
+          <div class="card-head">
+            <div>
+              <span class="eyebrow">MY PLAN · ${escapeHtml(plan.name)}</span>
+              <strong>Recommended Program</strong>
+            </div>
+            <span class="muted-note">~${plan.estimatedMinutes || 45} min/session</span>
+          </div>
+          <div class="plan-days-row">
+            ${plan.days.map((d, idx) => `
+              <button class="plan-day-pill ${idx === dayIdx ? "next-day" : ""}" type="button" data-train-plan-day="${idx}">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <strong>${escapeHtml(d.label)}</strong>
+                  ${idx === dayIdx ? '<span class="badge badge-primary">Today</span>' : '<span class="muted-note">Start</span>'}
+                </div>
+                <div class="muted-note" style="margin-top:3px;">${escapeHtml(d.title)}</div>
+              </button>
+            `).join("")}
+          </div>
+        `;
+        planBox.querySelectorAll("[data-train-plan-day]").forEach((btn) => {
+          btn.addEventListener("click", () => startPlanDay(Number(btn.dataset.trainPlanDay)));
+        });
+      }
       renderWorkoutRecommendations();
       renderRoutinesList();
       return;
     }
 
+    document.body.classList.add("workout-focused");
     requestWakeLock();
     idleEl.classList.add("hidden");
     activeEl.classList.remove("hidden");
+    const unitBtn = document.getElementById("btn-unit-toggle");
+    if (unitBtn) unitBtn.textContent = `Unit: ${getUnit().toUpperCase()}`;
+    const totalW = active.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+    const doneW = active.exercises.reduce((s, ex) => s + ex.sets.filter((st) => st.completed).length, 0);
+    const progPill = document.getElementById("workout-progress-pill");
+    if (progPill) progPill.textContent = `${doneW} / ${totalW} sets`;
     document.getElementById("workout-title-input").value = active.title;
     updateAutosaveIndicator();
     updateAutoRestButton();
@@ -3542,12 +3917,12 @@
             const typeLabel = setType || String(setIdx + 1);
             const typeTitle = setType === "W" ? "Warmup (excluded from stats)" : setType === "D" ? "Drop set" : setType === "F" ? "Failure set" : "Working set (tap to cycle W/D/F)";
             return `
-              <div class="set-row" data-set-row="${exIdx}:${setIdx}">
+              <div class="set-row ${setType === "W" ? "warmup-row" : ""}" data-set-row="${exIdx}:${setIdx}">
                 <span class="set-num">
                   <button class="set-type-btn ${setType ? `type-${setType}` : ""}" type="button" title="${typeTitle}" data-cycle-type="${exIdx}:${setIdx}">${typeLabel}</button>
                   <span class="pr-badge ${isPR ? "" : "hidden"}" data-pr-badge="${exIdx}:${setIdx}">PR!</span>
                 </span>
-                <input class="set-input" type="number" step="0.5" min="0" placeholder="kg" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
+                <input class="set-input" type="number" step="0.5" min="0" placeholder="${getUnit()}" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
                 <input class="set-input" type="number" min="0" placeholder="reps" value="${s.reps}" data-ex="${exIdx}" data-set="${setIdx}" data-field="reps" />
                 <button class="set-check ${s.completed ? "done" : ""}" type="button" data-toggle-set="${exIdx}:${setIdx}">✓</button>
                 <button class="set-del" type="button" data-del-set="${exIdx}:${setIdx}">&times;</button>
@@ -3555,11 +3930,14 @@
           })
           .join("");
 
+        const rigCue = (FORM_RIGS[ex.rig]?.cues?.[0]) || "";
+        const savedSetup = getProfileSettings().exerciseSettings?.[ex.id] || "";
         return `
           <div class="ex-log-card">
             <div class="ex-log-head">
               <div>
                 <strong>${escapeHtml(ex.name)}</strong>
+                <div class="ex-reason-line">${escapeHtml(getExerciseWhy(ex.id))}</div>
                 ${lastHint ? `<div class="last-hint">${escapeHtml(lastHint)}</div>` : ""}
                 <div class="badge-row">
                   ${ex.primary.map((m) => `<span class="badge badge-primary">${MUSCLES[m]}</span>`).join("")}
@@ -3585,8 +3963,9 @@
               <span>Set</span><span>Weight</span><span>Reps</span><span>Done</span><span></span>
             </div>
             ${setsHtml}
+            ${rigCue ? `<div class="inline-cue-bar"><strong>Form cue:</strong> ${escapeHtml(rigCue)}</div>` : ""}
             <div class="ex-meta-row">
-              <input class="ex-note-input" type="text" placeholder="Exercise note (e.g., pause reps, seat pin 4)..." value="${escapeHtml(item.note || "")}" data-ex-note="${exIdx}" />
+              <input class="ex-note-input" type="text" placeholder="Remembered setup (e.g., seat pin 4, 30° bench)..." value="${escapeHtml(item.note || savedSetup)}" data-ex-note="${exIdx}" />
               <input class="ex-rpe-input" type="number" step="0.5" min="5" max="10" placeholder="RPE" value="${item.rpe ?? ""}" data-ex-rpe="${exIdx}" />
             </div>
             <button class="btn btn-secondary btn-sm" type="button" data-add-set="${exIdx}">+ Add Set</button>
@@ -3646,6 +4025,9 @@
         const exIdx = Number(inp.dataset.exNote);
         if (active.exercises[exIdx]) {
           active.exercises[exIdx].note = inp.value;
+          const s = getProfileSettings();
+          if (!s.exerciseSettings) s.exerciseSettings = {};
+          s.exerciseSettings[active.exercises[exIdx].exerciseId] = inp.value;
           saveState();
         }
       });
@@ -4018,7 +4400,7 @@
     link.click();
   }
 
-  function openWorkoutSummaryModal(workout, newPRs = []) {
+  function openWorkoutSummaryModal(workout, newPRs = [], isJustFinished = false) {
     if (!workout) return;
     const m = getWorkoutSummaryMetrics(workout);
     const titleEl = document.getElementById("summary-modal-title");
@@ -4077,6 +4459,31 @@
         closeModal("modal-workout-summary");
         switchView("anatomy");
       };
+    }
+    const refBox = document.getElementById("summary-reflection-box");
+    const refNote = document.getElementById("summary-reflection-note");
+    if (refBox && refNote) {
+      refBox.classList.toggle("hidden", !isJustFinished);
+      refNote.textContent = "";
+      refBox.querySelectorAll("[data-reflect]").forEach((btn) => {
+        btn.onclick = () => {
+          const val = btn.dataset.reflect;
+          const sObj = getProfileSettings();
+          if (val === "hard") {
+            sObj.hardStreak = (sObj.hardStreak || 0) + 1;
+            refNote.textContent = sObj.hardStreak >= 2
+              ? "Two tough sessions in a row — consider a lighter recovery day or 1 fewer set per exercise next time."
+              : "Got it — we'll keep weights steady next session so you can adapt comfortably.";
+          } else if (val === "easy") {
+            sObj.hardStreak = 0;
+            refNote.textContent = "Great — next session we'll nudge your rep or weight target slightly higher.";
+          } else {
+            sObj.hardStreak = 0;
+            refNote.textContent = "Right in the sweet spot. Consistency like this drives steady progress.";
+          }
+          saveState();
+        };
+      });
     }
     openModal("modal-workout-summary");
   }
@@ -4137,13 +4544,27 @@
       endedAt: new Date().toISOString(),
       exercises: cleanedExercises
     };
+    // Convert displayed lb inputs back to stored kg if unit is lb
+    if (getUnit() === "lb") {
+      savedWorkout.exercises.forEach((item) => {
+        item.sets.forEach((s) => {
+          s.weight = displayToKg(s.weight);
+        });
+      });
+    }
     state.workouts.push(savedWorkout);
+    const sObj = getProfileSettings();
+    if (sObj.plan && sObj.plan.days && sObj.plan.days.length) {
+      const usedIdx = typeof active.planDayIdx === "number" ? active.planDayIdx : (sObj.plan.currentDayIdx || 0);
+      sObj.plan.currentDayIdx = (usedIdx + 1) % sObj.plan.days.length;
+    }
 
+    document.body.classList.remove("workout-focused");
     releaseWakeLock();
     stopRestTimer();
     setActiveWorkout(null);
     switchView("anatomy");
-    openWorkoutSummaryModal(savedWorkout, newPRs);
+    openWorkoutSummaryModal(savedWorkout, newPRs, true);
   }
 
   /* ---------------- EXERCISE PICKER & LIBRARY ---------------- */
@@ -4300,7 +4721,39 @@
   }
 
   /* ---------------- ANALYTICS, CALENDAR, HISTORY & FULL BODY INFO ---------------- */
+  function renderAnalyticsInsights() {
+    const el = document.getElementById("analytics-insights-row");
+    if (!el) return;
+    const stats7 = computeMuscleStats(state.activeProfileId, "7");
+    const statsAll = computeMuscleStats(state.activeProfileId, "all");
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    if (!workouts.length) {
+      el.innerHTML = `<div class="insight-card"><strong>No training insights yet</strong><div class="muted-note">Log your first session to see weekly volume and recovery trends here.</div></div>`;
+      return;
+    }
+    const top7 = Object.entries(stats7).sort((a, b) => b[1].weightedSets - a[1].weightedSets)[0];
+    const legSets = (stats7.quads?.weightedSets || 0) + (stats7.hamstrings?.weightedSets || 0);
+    const legLast = statsAll.quads?.lastTrained || statsAll.hamstrings?.lastTrained;
+    const legDaysAgo = legLast ? Math.floor((Date.now() - new Date(legLast).getTime()) / (24 * 60 * 60 * 1000)) : null;
+
+    const cards = [];
+    if (top7 && top7[1].weightedSets > 0) {
+      cards.push(`<div class="insight-card positive"><strong>Top Focus: ${MUSCLES[top7[0]]}</strong><div class="muted-note">You logged ${top7[1].weightedSets.toFixed(1).replace(/\.0$/, "")} working sets for ${MUSCLES[top7[0]]} in the last 7 days.</div></div>`);
+    }
+    if (legSets === 0) {
+      const msg = legDaysAgo !== null ? `Legs haven't been trained in ${legDaysAgo} days.` : "No leg sets logged yet this week.";
+      cards.push(`<div class="insight-card attention"><strong>Lower Body Check</strong><div class="muted-note">${msg}</div></div>`);
+    } else {
+      cards.push(`<div class="insight-card positive"><strong>Lower Body Active</strong><div class="muted-note">${legSets.toFixed(1).replace(/\.0$/, "")} quad &amp; hamstring sets completed in the last 7 days.</div></div>`);
+    }
+    const plan = ensurePlanExists();
+    const recentCount = workouts.filter((w) => Date.now() - new Date(w.endedAt).getTime() <= 7 * 86400000).length;
+    cards.push(`<div class="insight-card"><strong>Weekly Adherence</strong><div class="muted-note">${recentCount} of ${plan.daysPerWeek || 3} planned sessions completed this week.</div></div>`);
+    el.innerHTML = cards.join("");
+  }
+
   function renderAnalytics() {
+    renderAnalyticsInsights();
     renderVolumeChart();
     populateStrengthSelect();
     renderStrengthChart();
@@ -4851,6 +5304,19 @@
     reader.readAsText(file);
   }
 
+
+  function openOnboardingModal() {
+    const s = getProfileSettings();
+    document.getElementById("ob-goal").value = s.goal || "Build Muscle";
+    document.getElementById("ob-experience").value = s.experience || "Beginner";
+    document.getElementById("ob-days").value = String(s.daysPerWeek || 3);
+    document.getElementById("ob-duration").value = String(s.sessionMinutes || 45);
+    document.getElementById("ob-equipment").value = s.equipment || "full_gym";
+    document.getElementById("ob-tone").value = s.tone || "system";
+    document.getElementById("ob-limitations").value = s.limitations || "";
+    openModal("modal-onboarding");
+  }
+
   /* ---------------- EVENT BINDING ---------------- */
   function bindEvents() {
     document.querySelectorAll("[data-nav]").forEach((btn) => {
@@ -5000,6 +5466,55 @@
       btn.addEventListener("click", () => startRestTimer(Number(btn.dataset.rest)));
     });
     document.getElementById("btn-rest-stop").addEventListener("click", () => stopRestTimer(true));
+    document.getElementById("btn-float-rest-minus")?.addEventListener("click", () => adjustRestTimer(-15));
+    document.getElementById("btn-float-rest-plus")?.addEventListener("click", () => adjustRestTimer(15));
+    document.getElementById("btn-float-rest-stop")?.addEventListener("click", () => stopRestTimer(true));
+
+    document.getElementById("btn-unit-toggle")?.addEventListener("click", () => {
+      const s = getProfileSettings();
+      s.unit = s.unit === "lb" ? "kg" : "lb";
+      saveState();
+      renderWorkoutView();
+    });
+
+    document.getElementById("btn-setup-coach")?.addEventListener("click", openOnboardingModal);
+    document.getElementById("btn-train-setup-plan")?.addEventListener("click", openOnboardingModal);
+    document.getElementById("btn-open-onboarding-from-profile")?.addEventListener("click", () => {
+      closeModal("modal-profile-data");
+      openOnboardingModal();
+    });
+
+    document.getElementById("pref-unit-select")?.addEventListener("change", (e) => {
+      getProfileSettings().unit = e.target.value;
+      saveState();
+      switchView(currentView);
+    });
+    document.getElementById("pref-tone-select")?.addEventListener("change", (e) => {
+      getProfileSettings().tone = e.target.value;
+      saveState();
+      applyVisualTone();
+    });
+
+    document.getElementById("form-onboarding")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const s = getProfileSettings();
+      s.goal = document.getElementById("ob-goal").value;
+      s.experience = document.getElementById("ob-experience").value;
+      s.daysPerWeek = Number(document.getElementById("ob-days").value) || 3;
+      s.sessionMinutes = Number(document.getElementById("ob-duration").value) || 45;
+      s.equipment = document.getElementById("ob-equipment").value;
+      s.tone = document.getElementById("ob-tone").value;
+      s.limitations = document.getElementById("ob-limitations").value.trim();
+      s.onboardingDone = true;
+      s.plan = generatePlanFromPrefs(s);
+      saveState();
+      applyVisualTone();
+      closeModal("modal-onboarding");
+      switchView("dashboard");
+    });
+
+    window.addEventListener("online", updateOfflineStatus);
+    window.addEventListener("offline", updateOfflineStatus);
 
     document.getElementById("btn-view-front").addEventListener("click", () => {
       currentSide = "front";
@@ -5269,7 +5784,12 @@
   /* ---------------- INIT ---------------- */
   registerServiceWorker();
   initAmbientBackground();
+  applyVisualTone();
+  updateOfflineStatus();
   renderHeader();
   bindEvents();
   switchView("dashboard");
+  if (!getProfileSettings().onboardingDone && getProfileWorkouts(state.activeProfileId).length === 0) {
+    openOnboardingModal();
+  }
 })();
