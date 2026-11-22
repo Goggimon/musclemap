@@ -29,7 +29,7 @@
       <div class="top-actions">
         <span id="app-save-indicator" class="save-toast hidden" aria-live="polite">Saved</span>
         <span id="app-offline-pill" class="offline-pill hidden">Offline</span>
-        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v7.0</button>
+        <button id="btn-version-badge" class="version-pill" type="button" aria-label="View app version and changelog">v7.1</button>
         <button id="profile-switcher-btn" class="profile-pill" type="button" aria-label="Choose user profile">
           <span id="active-profile-dot" class="profile-dot"></span>
           <span id="active-profile-name">Select User</span>
@@ -1070,6 +1070,21 @@
         <button class="close-modal btn-icon" type="button" data-close="modal-workout-detail">&times;</button>
       </div>
       <div id="workout-detail-body" class="form-stack"></div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: Edit Past Workout -->
+  <div id="modal-edit-workout" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="edit-wk-modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow" style="margin-bottom:2px;">CORRECTION &amp; LOGGING</span>
+          <h3 id="edit-wk-modal-title">Edit Past Workout</h3>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-edit-workout">&times;</button>
+      </div>
+      <div id="edit-workout-body" class="form-stack"></div>
     </div>
   </div>
 

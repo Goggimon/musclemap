@@ -1,10 +1,19 @@
 (() => {
   "use strict";
 
-  const APP_VERSION = "v7.0";
+  const APP_VERSION = "v7.1";
   const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
+    {
+      version: "v7.1",
+      date: "2026-11-22",
+      items: [
+        "Expanded Exercise Library to 95+ exercises: added 45° Back Extensions, Weighted Back Extensions, Reverse Hyperextensions, Neutral/Single-Arm/Wide/Close/Underhand Lat Pulldowns, MAG/Wide/Single-Arm Seated Cable Rows, and all Cable Fly angles (High-to-Low, Low-to-High, Mid, Seated, Incline, Single-Arm)",
+        "Added dedicated 2D stickman animations, joint-angle guides, and Mistake comparisons for every new movement pattern",
+        "Added Edit Past Workout inside History & Calendar so you can fix weight/reps, change set types, or add/remove sets and exercises anytime"
+      ]
+    },
     {
       version: "v7.0",
       date: "2026-11-20",
@@ -253,10 +262,59 @@
     { id: "ex_calf_raise", name: "Standing Calf Raise Machine", equipment: "Machine", primary: ["calves"], secondary: [], rig: "calf_raise" },
     { id: "ex_db_calf", name: "Dumbbell Single-Leg Calf Raise", equipment: "Dumbbell", primary: ["calves"], secondary: [], rig: "calf_raise" },
 
+    // Chest Variations & Cable Flies
+    { id: "ex_decline_bench", name: "Decline Barbell Bench Press", equipment: "Barbell", primary: ["chest"], secondary: ["triceps", "front_delts"], rig: "bench_press" },
+    { id: "ex_decline_db", name: "Decline Dumbbell Press", equipment: "Dumbbell", primary: ["chest"], secondary: ["triceps", "front_delts"], rig: "bench_press" },
+    { id: "ex_high_to_low_fly", name: "High-to-Low Cable Fly (Lower Chest)", equipment: "Cable", primary: ["chest"], secondary: ["front_delts"], rig: "cable_fly_high_low" },
+    { id: "ex_low_to_high_fly", name: "Low-to-High Cable Fly (Upper Chest)", equipment: "Cable", primary: ["chest", "front_delts"], secondary: [], rig: "cable_fly_low_high" },
+    { id: "ex_standing_mid_fly", name: "Standing Mid-Pulley Cable Fly", equipment: "Cable", primary: ["chest"], secondary: ["front_delts"], rig: "cable_fly" },
+    { id: "ex_seated_cable_fly", name: "Seated Cable Chest Fly", equipment: "Cable", primary: ["chest"], secondary: ["front_delts"], rig: "cable_fly" },
+    { id: "ex_incline_cable_fly", name: "Incline Bench Cable Fly", equipment: "Cable", primary: ["chest", "front_delts"], secondary: [], rig: "cable_fly_low_high" },
+    { id: "ex_single_cable_fly", name: "Single-Arm Cable Crossover Fly", equipment: "Cable", primary: ["chest"], secondary: ["front_delts", "obliques"], rig: "cable_fly" },
+
+    // Back Extensions & Lower Back
+    { id: "ex_back_ext", name: "45° Back Extension (Hyperextension)", equipment: "Bodyweight", primary: ["lower_back", "glutes"], secondary: ["hamstrings"], rig: "back_extension" },
+    { id: "ex_weighted_back_ext", name: "Weighted 45° Back Extension", equipment: "Dumbbell", primary: ["lower_back", "glutes"], secondary: ["hamstrings"], rig: "back_extension" },
+    { id: "ex_reverse_hyper", name: "Reverse Hyperextension", equipment: "Machine", primary: ["glutes", "lower_back"], secondary: ["hamstrings"], rig: "lying_curl" },
+
+    // Lat Pulldown & Seated Cable Row Variations
+    { id: "ex_neutral_pulldown", name: "Neutral-Grip Lat Pulldown", equipment: "Cable", primary: ["lats"], secondary: ["biceps", "mid_back"], rig: "lat_pulldown_neutral" },
+    { id: "ex_single_arm_pulldown", name: "Single-Arm Lat Pulldown", equipment: "Cable", primary: ["lats"], secondary: ["biceps", "mid_back", "obliques"], rig: "lat_pulldown_single" },
+    { id: "ex_wide_pulldown", name: "Wide-Grip Lat Pulldown", equipment: "Cable", primary: ["lats", "mid_back"], secondary: ["rear_delts", "biceps"], rig: "lat_pulldown" },
+    { id: "ex_close_pulldown", name: "Close-Grip V-Bar Lat Pulldown", equipment: "Cable", primary: ["lats"], secondary: ["biceps", "mid_back"], rig: "lat_pulldown_neutral" },
+    { id: "ex_underhand_pulldown", name: "Underhand (Supinated) Lat Pulldown", equipment: "Cable", primary: ["lats", "biceps"], secondary: ["mid_back"], rig: "lat_pulldown_neutral" },
+    { id: "ex_mag_cable_row", name: "Seated Cable Row (MAG / Neutral Grip)", equipment: "Cable", primary: ["mid_back", "lats"], secondary: ["biceps", "rear_delts"], rig: "seated_row" },
+    { id: "ex_wide_cable_row", name: "Seated Cable Row (Wide Grip)", equipment: "Cable", primary: ["mid_back", "rear_delts"], secondary: ["lats", "traps", "biceps"], rig: "seated_row_wide" },
+    { id: "ex_single_cable_row", name: "Single-Arm Seated Cable Row", equipment: "Cable", primary: ["lats", "mid_back"], secondary: ["biceps", "obliques"], rig: "seated_row" },
+    { id: "ex_tbar_row", name: "T-Bar Row", equipment: "Barbell", primary: ["mid_back", "lats"], secondary: ["rear_delts", "biceps", "lower_back"], rig: "bent_row" },
+    { id: "ex_pendlay_row", name: "Pendlay Barbell Row", equipment: "Barbell", primary: ["mid_back", "lats"], secondary: ["rear_delts", "lower_back"], rig: "bent_row" },
+    { id: "ex_meadows_row", name: "Meadows Landmine Row", equipment: "Barbell", primary: ["lats", "mid_back"], secondary: ["rear_delts", "biceps"], rig: "single_arm_row" },
+    { id: "ex_straight_arm_pulldown", name: "Straight-Arm Cable Pulldown", equipment: "Cable", primary: ["lats"], secondary: ["triceps", "abs"], rig: "straight_arm_pulldown" },
+
+    // Shoulder & Arm Variations
+    { id: "ex_leaning_lat_raise", name: "Leaning Single-Arm Cable Lateral Raise", equipment: "Cable", primary: ["side_delts"], secondary: ["traps"], rig: "lat_raise" },
+    { id: "ex_upright_row", name: "Cable / EZ-Bar Upright Row", equipment: "Cable", primary: ["side_delts", "traps"], secondary: ["front_delts", "biceps"], rig: "shrug" },
+    { id: "ex_reverse_cable_fly", name: "Cross-Body Cable Rear Delt Fly", equipment: "Cable", primary: ["rear_delts"], secondary: ["mid_back"], rig: "rear_delt_fly" },
+    { id: "ex_bayesian_curl", name: "Bayesian Behind-the-Back Cable Curl", equipment: "Cable", primary: ["biceps"], secondary: ["forearms"], rig: "bayesian_curl" },
+    { id: "ex_rope_hammer_curl", name: "Cable Rope Hammer Curl", equipment: "Cable", primary: ["biceps", "forearms"], secondary: [], rig: "curl" },
+    { id: "ex_spider_curl", name: "Spider Dumbbell Curl", equipment: "Dumbbell", primary: ["biceps"], secondary: ["forearms"], rig: "preacher_curl" },
+    { id: "ex_cable_oh_tricep", name: "Overhead Cable Rope Tricep Extension", equipment: "Cable", primary: ["triceps"], secondary: [], rig: "tricep_overhead" },
+    { id: "ex_single_pushdown", name: "Single-Arm Cable Tricep Pushdown", equipment: "Cable", primary: ["triceps"], secondary: [], rig: "tricep_pushdown" },
+    { id: "ex_close_grip_bench", name: "Close-Grip Barbell Bench Press", equipment: "Barbell", primary: ["triceps", "chest"], secondary: ["front_delts"], rig: "bench_press" },
+
+    // Leg Variations
+    { id: "ex_front_squat", name: "Barbell Front Squat", equipment: "Barbell", primary: ["quads", "glutes"], secondary: ["abs", "mid_back"], rig: "squat" },
+    { id: "ex_hack_squat", name: "Hack Squat Machine", equipment: "Machine", primary: ["quads", "glutes"], secondary: [], rig: "squat" },
+    { id: "ex_sumo_deadlift", name: "Sumo Deadlift", equipment: "Barbell", primary: ["glutes", "hamstrings", "quads"], secondary: ["lower_back", "traps", "forearms"], rig: "rdl" },
+    { id: "ex_seated_calf", name: "Seated Calf Raise Machine", equipment: "Machine", primary: ["calves"], secondary: [], rig: "calf_raise" },
+    { id: "ex_adductor_mach", name: "Hip Adductor / Abductor Machine", equipment: "Machine", primary: ["glutes", "quads"], secondary: [], rig: "leg_ext" },
+
     // Core
     { id: "ex_hanging_raise", name: "Hanging Leg Raise", equipment: "Bodyweight", primary: ["abs"], secondary: ["obliques", "forearms"], rig: "hanging_raise" },
     { id: "ex_cable_crunch", name: "Cable Crunch", equipment: "Cable", primary: ["abs"], secondary: ["obliques"], rig: "cable_crunch" },
     { id: "ex_ab_mach", name: "Ab Crunch Machine", equipment: "Machine", primary: ["abs"], secondary: ["obliques"], rig: "cable_crunch" },
+    { id: "ex_ab_wheel", name: "Ab Wheel Rollout", equipment: "Bodyweight", primary: ["abs"], secondary: ["lats", "obliques"], rig: "ab_wheel" },
+    { id: "ex_pallof_press", name: "Cable Pallof Press", equipment: "Cable", primary: ["obliques", "abs"], secondary: [], rig: "woodchop" },
     { id: "ex_woodchop", name: "Cable / DB Woodchopper", equipment: "Cable", primary: ["obliques"], secondary: ["abs"], rig: "woodchop" }
   ];
 
@@ -701,6 +759,105 @@
       ],
       start: { head: [126, 62], neck: [122, 74], sh: [118, 82], el: [106, 72], wr: [116, 60], hip: [114, 120], kn: [116, 148], an: [144, 148] },
       end:   { head: [100, 96], neck: [104, 106], sh: [106, 110], el: [96, 102], wr: [102, 90], hip: [114, 120], kn: [116, 148], an: [144, 148] }
+    },
+    back_extension: {
+      equip: "roman_chair",
+      prop: "none",
+      cues: [
+        "Set the hip pad just below your hip crease so your pelvis can hinge freely.",
+        "Keep a neutral spine (or slight upper-back round to bias glutes) and hinge down to ~60°.",
+        "Squeeze glutes and spinal erectors to rise to a straight body line—don't hyperextend past 180°."
+      ],
+      start: { head: [148, 114], neck: [136, 102], sh: [128, 96], el: [134, 114], wr: [138, 102], hip: [96, 86], kn: [72, 118], an: [50, 148] },
+      end:   { head: [152, 54],  neck: [138, 64],  sh: [130, 70], el: [132, 88],  wr: [138, 78],  hip: [96, 86], kn: [72, 118], an: [50, 148] }
+    },
+    lat_pulldown_neutral: {
+      equip: "lat_machine",
+      prop: "none",
+      cues: [
+        "Use a shoulder-width neutral/MAG attachment with palms facing each other.",
+        "Keep chest lifted (~10–15° lean) and drive elbows straight down in front of your torso.",
+        "Pause when handles reach upper chest, then control the stretch all the way back up."
+      ],
+      start: { head: [108, 48], neck: [106, 62], sh: [104, 70], el: [112, 46], wr: [116, 22], hip: [102, 108], kn: [136, 108], an: [138, 148] },
+      end:   { head: [108, 50], neck: [104, 64], sh: [100, 72], el: [104, 96], wr: [114, 72], hip: [102, 108], kn: [136, 108], an: [138, 148] }
+    },
+    lat_pulldown_single: {
+      equip: "lat_machine",
+      prop: "none",
+      cues: [
+        "Grip a single D-handle with your palm neutral or slightly rotating from pronated to supinated.",
+        "Anchor your non-working hand on the pad/seat and pull your elbow down toward your hip pocket.",
+        "Let the shoulder blade glide fully upward at the top for a deep unilateral lat stretch."
+      ],
+      start: { head: [108, 48], neck: [106, 62], sh: [104, 70], el: [114, 46], wr: [118, 22], hip: [102, 108], kn: [136, 108], an: [138, 148] },
+      end:   { head: [108, 50], neck: [105, 64], sh: [102, 72], el: [100, 96], wr: [112, 74], hip: [102, 108], kn: [136, 108], an: [138, 148] }
+    },
+    seated_row_wide: {
+      equip: "cable_mid",
+      prop: "none",
+      cues: [
+        "Use a wide pronated or wide MAG bar outside shoulder width.",
+        "Keep elbows flared ~45–60° and pull the bar toward your lower chest / sternum.",
+        "Squeeze your mid-back and rear delts hard before extending arms forward."
+      ],
+      start: { head: [132, 54], neck: [130, 68], sh: [128, 76], el: [102, 74], wr: [76, 74],  hip: [128, 116], kn: [96, 116], an: [66, 122] },
+      end:   { head: [132, 54], neck: [130, 68], sh: [128, 76], el: [152, 78], wr: [124, 78], hip: [128, 116], kn: [96, 116], an: [66, 122] }
+    },
+    cable_fly_high_low: {
+      equip: "cable_high",
+      prop: "none",
+      cues: [
+        "Set pulleys above head height, step forward into a staggered stance, and lean slightly forward.",
+        "Keep a soft fixed elbow bend and sweep handles downward and inward in front of your hips.",
+        "Squeeze your lower chest for 1 second at the bottom before controlling back up."
+      ],
+      start: { head: [110, 34], neck: [110, 48], sh: [108, 58], el: [86, 52],  wr: [68, 42],  hip: [104, 96], kn: [114, 124], an: [118, 150] },
+      end:   { head: [110, 34], neck: [110, 48], sh: [108, 58], el: [122, 82], wr: [136, 104], hip: [104, 96], kn: [114, 124], an: [118, 150] }
+    },
+    cable_fly_low_high: {
+      equip: "cable_mid",
+      prop: "none",
+      cues: [
+        "Set pulleys at the bottom setting, step forward, and keep chest proud.",
+        "Keep elbows softly bent and scoop handles upward and inward to upper-chest/chin height.",
+        "Focus on driving your upper arms across your upper chest rather than lifting with biceps."
+      ],
+      start: { head: [110, 34], neck: [110, 48], sh: [108, 58], el: [96, 82],  wr: [84, 108], hip: [104, 96], kn: [114, 124], an: [118, 150] },
+      end:   { head: [110, 34], neck: [110, 48], sh: [108, 58], el: [128, 60], wr: [148, 46], hip: [104, 96], kn: [114, 124], an: [118, 150] }
+    },
+    straight_arm_pulldown: {
+      equip: "cable_high",
+      prop: "none",
+      cues: [
+        "Stand back from a high pulley with a slight hip hinge (~20°) and arms nearly straight.",
+        "Keep elbows softly locked and sweep the bar down in an arc to your thighs using your lats.",
+        "Control the return back overhead until you feel a deep lat stretch."
+      ],
+      start: { head: [128, 36], neck: [126, 50], sh: [124, 60], el: [98, 46],  wr: [74, 34],  hip: [128, 98], kn: [128, 126], an: [128, 150] },
+      end:   { head: [128, 36], neck: [126, 50], sh: [124, 60], el: [122, 84], wr: [126, 108], hip: [128, 98], kn: [128, 126], an: [128, 150] }
+    },
+    bayesian_curl: {
+      equip: "cable_mid",
+      prop: "none",
+      cues: [
+        "Set pulley at wrist/hip height, face away from the stack, and step forward so your arm is pulled behind your torso.",
+        "Keep your elbow pinned slightly behind your ribcage to maximize the long-head stretch.",
+        "Curl forward smoothly without letting your shoulder roll forward."
+      ],
+      start: { head: [128, 32], neck: [128, 46], sh: [126, 56], el: [108, 76], wr: [92, 98],  hip: [124, 96], kn: [128, 124], an: [124, 150] },
+      end:   { head: [128, 32], neck: [128, 46], sh: [126, 56], el: [114, 78], wr: [132, 60], hip: [124, 96], kn: [128, 124], an: [124, 150] }
+    },
+    ab_wheel: {
+      equip: "floor",
+      prop: "none",
+      cues: [
+        "Start kneeling with glutes squeezed and ribs tucked down (posterior pelvic tilt).",
+        "Roll forward under control keeping arms straight and lower back flat—never let hips sag.",
+        "Pull back toward your knees by contracting your abs and lats together."
+      ],
+      start: { head: [112, 80], neck: [118, 90], sh: [122, 96], el: [116, 122], wr: [112, 146], hip: [148, 108], kn: [164, 148], an: [188, 148] },
+      end:   { head: [62, 114], neck: [74, 120], sh: [82, 124], el: [64, 136],  wr: [48, 146],  hip: [126, 134], kn: [164, 148], an: [188, 148] }
     },
     woodchop: {
       equip: "cable_high",
@@ -1258,6 +1415,45 @@
     ex_hanging_raise: { bw: true, weighted: false },
     ex_cable_crunch: { r: 0.45 },
     ex_ab_mach: { r: 0.45 },
+    ex_decline_bench: { r: 0.92 },
+    ex_decline_db: { r: 0.34, perHand: true },
+    ex_high_to_low_fly: { r: 0.22, perHand: true },
+    ex_low_to_high_fly: { r: 0.18, perHand: true },
+    ex_standing_mid_fly: { r: 0.20, perHand: true },
+    ex_seated_cable_fly: { r: 0.22, perHand: true },
+    ex_incline_cable_fly: { r: 0.18, perHand: true },
+    ex_single_cable_fly: { r: 0.20 },
+    ex_back_ext: { bw: true, weighted: false },
+    ex_weighted_back_ext: { r: 0.22 },
+    ex_reverse_hyper: { r: 0.45 },
+    ex_neutral_pulldown: { r: 0.75 },
+    ex_single_arm_pulldown: { r: 0.36 },
+    ex_wide_pulldown: { r: 0.70 },
+    ex_close_pulldown: { r: 0.76 },
+    ex_underhand_pulldown: { r: 0.74 },
+    ex_mag_cable_row: { r: 0.78 },
+    ex_wide_cable_row: { r: 0.68 },
+    ex_single_cable_row: { r: 0.36 },
+    ex_tbar_row: { r: 0.85 },
+    ex_pendlay_row: { r: 0.80 },
+    ex_meadows_row: { r: 0.42 },
+    ex_straight_arm_pulldown: { r: 0.35 },
+    ex_leaning_lat_raise: { r: 0.11 },
+    ex_upright_row: { r: 0.40 },
+    ex_reverse_cable_fly: { r: 0.12 },
+    ex_bayesian_curl: { r: 0.16 },
+    ex_rope_hammer_curl: { r: 0.32 },
+    ex_spider_curl: { r: 0.14, perHand: true },
+    ex_cable_oh_tricep: { r: 0.34 },
+    ex_single_pushdown: { r: 0.18 },
+    ex_close_grip_bench: { r: 0.82 },
+    ex_front_squat: { r: 1.05 },
+    ex_hack_squat: { r: 1.35 },
+    ex_sumo_deadlift: { r: 1.50 },
+    ex_seated_calf: { r: 0.75 },
+    ex_adductor_mach: { r: 0.65 },
+    ex_ab_wheel: { bw: true, weighted: false },
+    ex_pallof_press: { r: 0.20 },
     ex_woodchop: { r: 0.22 }
   };
 
@@ -1479,6 +1675,12 @@
         <line x1="88" y1="124" x2="116" y2="124" stroke="#3f4654" stroke-width="8" stroke-linecap="round"/>
         <line x1="124" y1="112" x2="178" y2="62" stroke="#2a303c" stroke-width="3"/>
         <line x1="${sx - 4}" y1="${sy + 12}" x2="${sx + 10}" y2="${sy - 14}" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>`;
+    } else if (equip === "roman_chair") {
+      html += `
+        <line x1="50" y1="148" x2="106" y2="88" stroke="#3f4654" stroke-width="5" stroke-linecap="round"/>
+        <line x1="94" y1="98" x2="94" y2="152" stroke="#3a404d" stroke-width="3.5"/>
+        <rect x="90" y="84" width="16" height="8" rx="2" fill="#1b1f27" stroke="#C52F3A" stroke-width="1.2"/>
+        <circle cx="52" cy="144" r="4" fill="#f59e0b"/>`;
     }
     return html;
   }
@@ -1860,6 +2062,87 @@
       mistakeType: "round_back",
       mistakeNote: "Mistake: Sitting hips back toward heels turns the crunch into a hip hinge.",
       lookOutFor: "Keep your hips frozen over your knees—only your upper spine curls down."
+    },
+    back_extension: {
+      angleMode: "hip", track: "head",
+      setup: "Set top pad just below your hip crease; cross arms over chest or hold plate/dumbbell close to sternum.",
+      tempo: "2.5s hinge down keeping spine neutral, 1s squeeze glutes & erectors to rise to straight line.",
+      targetAngles: "Hip hinge ~105°–120° bottom to 180° straight line (never hyperextend)",
+      mistakeType: "round_back",
+      mistakeNote: "Mistake: Hyperextending your lower back past 180° at the top or rounding your lumbar spine under load.",
+      lookOutFor: "Stop at a straight line from heels to head—never arch backward past neutral."
+    },
+    lat_pulldown_neutral: {
+      angleMode: "elbow", track: "wr",
+      setup: "Lock thighs under pad, grip shoulder-width neutral/MAG handles with palms facing each other.",
+      tempo: "1.5s drive elbows down in front of ribs, 1s upper-chest pause, 2.5s full overhead stretch.",
+      targetAngles: "Torso ~105° · Elbows tucked ~30° forward · Elbow 172° top to ~62° bottom",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Leaning way back to turn the pulldown into a row or shrugging shoulders at the bottom.",
+      lookOutFor: "Keep chest proud and pull elbows straight down toward your hips."
+    },
+    lat_pulldown_single: {
+      angleMode: "elbow", track: "wr",
+      setup: "Brace non-working hand on seat/pad, hold D-handle overhead with a slight ~10° torso lean.",
+      tempo: "1.5s pull elbow smoothly down to your hip pocket, 1s squeeze, 2.5s full upward lat stretch.",
+      targetAngles: "Elbow 175° top stretch to ~65° bottom · Minimal torso twist",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Twisting or side-bending your torso aggressively to yank the handle down.",
+      lookOutFor: "Keep your ribcage square and let the shoulder blade glide all the way up at the top."
+    },
+    seated_row_wide: {
+      angleMode: "elbow", track: "wr",
+      setup: "Sit tall with knees slightly bent, grip wide MAG or straight bar outside shoulder width.",
+      tempo: "1.5s pull bar to lower sternum with elbows flared ~45–60°, 1s mid-back squeeze, 2s return.",
+      targetAngles: "Upright ~90°–100° torso · Elbows ~50° from sides · Elbow 170° to ~78°",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Rocking your torso back and forth or shrugging upper traps toward your ears.",
+      lookOutFor: "Keep shoulders depressed down and pull with your shoulder blades."
+    },
+    cable_fly_high_low: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Set pulleys high above head, take one step forward, lean ~15° forward with chest lifted.",
+      tempo: "2s controlled open above shoulders, 1s sweep down and inward in front of hips, 1s lower-pec squeeze.",
+      targetAngles: "Soft fixed ~150° elbow · Downward-inward arc toward navel/hips",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Bending elbows into a press or hunching shoulders forward at the bottom.",
+      lookOutFor: "Keep shoulders back and down as hands meet in front of your lower torso."
+    },
+    cable_fly_low_high: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Set pulleys at bottom, stagger stance, chest proud, palms facing up/forward.",
+      tempo: "2s controlled stretch back, 1.5s scoop upward and inward to chin/upper-chest height.",
+      targetAngles: "Soft fixed ~150° elbow · Upward-inward arc to clavicle level",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Swinging your torso backward or bending elbows to curl the weight up.",
+      lookOutFor: "Lead with your inner elbows and upper chest—don't turn it into a bicep curl."
+    },
+    straight_arm_pulldown: {
+      angleMode: "shoulder", track: "wr",
+      setup: "Stand back from high pulley, ~20° hip hinge, core braced, arms straight with soft ~165° elbow.",
+      tempo: "1.5s sweep bar down to thighs using lats, 1s squeeze, 2.5s slow return overhead.",
+      targetAngles: "Fixed ~165° elbow · Shoulder extension arc from ~150° down to ~25°",
+      mistakeType: "elbow_flare",
+      mistakeNote: "Mistake: Bending and straightening your elbows turns it into a tricep pushdown.",
+      lookOutFor: "Keep your elbow angle locked—motion happens strictly at the shoulder joint."
+    },
+    bayesian_curl: {
+      angleMode: "elbow", track: "wr",
+      setup: "Set pulley at wrist height, face away, step forward so your upper arm trails ~20° behind torso.",
+      tempo: "1.5s curl forearm forward, 1s squeeze, 2.5s slow lower back into the behind-body stretch.",
+      targetAngles: "Upper arm ~20° behind torso · Elbow ~175° stretch to ~48° top",
+      mistakeType: "torso_swing",
+      mistakeNote: "Mistake: Letting your elbow swing forward in front of your ribs loses the long-head stretch.",
+      lookOutFor: "Keep your elbow anchored behind your torso line on every rep."
+    },
+    ab_wheel: {
+      angleMode: "hip", track: "wr",
+      setup: "Kneel with glutes squeezed, ribs tucked down (hollow body), arms straight gripping wheel.",
+      tempo: "3s slow rollout extending only as far as lower back stays flat, 1.5s pull back via abs.",
+      targetAngles: "Neutral/slightly flexed spine · Stop before lower back arches",
+      mistakeType: "hip_sag",
+      mistakeNote: "Mistake: Letting your hips sag and lower back hyperextend at full reach.",
+      lookOutFor: "Stop rolling out the instant you feel your lower back start to arch."
     },
     woodchop: {
       angleMode: "shoulder", track: "wr",
@@ -2600,7 +2883,7 @@
       items: [
         ["User Switcher", "Keep completely separate workouts, routines, and body stats for Person 1 and Person 2."],
         ["JSON Backup & Merge Import", "Export a full JSON backup or merge-import data from another device without overwriting records."],
-        ["Version Pill (v7.0)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
+        ["Version Pill (v7.1)", "Tap the version badge in the top-right header anytime to check the current build and release notes."]
       ]
     }
   ];
@@ -5070,6 +5353,174 @@
     });
   }
 
+
+  function openEditWorkoutModal(workoutId) {
+    const orig = state.workouts.find((item) => item.id === workoutId);
+    if (!orig) return;
+    const draft = {
+      title: orig.title || "Workout",
+      exercises: (orig.exercises || []).map((exItem) => ({
+        exerciseId: exItem.exerciseId,
+        note: exItem.note || "",
+        rpe: exItem.rpe ?? null,
+        sets: (exItem.sets || []).map((s) => ({
+          weight: s.weight ? String(kgToDisplay(s.weight)) : "0",
+          reps: String(s.reps ?? "0"),
+          type: s.type || "",
+          completed: true
+        }))
+      }))
+    };
+
+    const body = document.getElementById("edit-workout-body");
+    if (!body) return;
+
+    const renderEditor = () => {
+      const unitLbl = getUnit();
+      const exOptions = state.exercises
+        .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} (${escapeHtml(e.equipment)})</option>`)
+        .join("");
+
+      body.innerHTML = `
+        <label class="field">
+          <span>Workout Title</span>
+          <input id="edit-wk-title" class="input" type="text" value="${escapeHtml(draft.title)}" />
+        </label>
+        <div class="card-stack">
+          ${draft.exercises.map((item, exIdx) => {
+            const ex = getExerciseById(item.exerciseId);
+            return `
+              <div class="card">
+                <div class="card-head" style="margin-bottom:8px;">
+                  <strong>${escapeHtml(ex ? ex.name : item.exerciseId)}</strong>
+                  <button class="btn btn-danger-ghost btn-sm" type="button" data-edit-rem-ex="${exIdx}">Remove</button>
+                </div>
+                <div class="set-grid-head" style="grid-template-columns:46px 1fr 1fr 32px;">
+                  <span>Type</span><span>Weight (${unitLbl})</span><span>Reps</span><span></span>
+                </div>
+                <div class="card-stack" style="gap:6px;margin-top:4px;">
+                  ${item.sets.map((s, setIdx) => `
+                    <div class="set-row" style="grid-template-columns:46px 1fr 1fr 32px;">
+                      <button class="set-type-btn ${s.type ? `type-${s.type}` : ""}" type="button" data-edit-type="${exIdx}:${setIdx}">${s.type || (setIdx + 1)}</button>
+                      <input class="set-input" type="number" step="0.5" min="0" value="${escapeHtml(s.weight)}" data-edit-wt="${exIdx}:${setIdx}" />
+                      <input class="set-input" type="number" min="0" value="${escapeHtml(s.reps)}" data-edit-rp="${exIdx}:${setIdx}" />
+                      <button class="set-del" type="button" data-edit-del-set="${exIdx}:${setIdx}">&times;</button>
+                    </div>
+                  `).join("")}
+                </div>
+                <button class="btn btn-secondary btn-sm" type="button" data-edit-add-set="${exIdx}" style="margin-top:8px;">+ Add Set</button>
+              </div>
+            `;
+          }).join("")}
+        </div>
+        <div class="inline-row">
+          <select id="edit-wk-add-ex-select" class="input">${exOptions}</select>
+          <button id="btn-edit-wk-add-ex" class="btn btn-secondary btn-sm" type="button">+ Add</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px;">
+          <button id="btn-edit-wk-cancel" class="btn btn-ghost" type="button" style="flex:1;">Cancel</button>
+          <button id="btn-edit-wk-save" class="btn btn-primary" type="button" style="flex:1;">Save Changes</button>
+        </div>
+      `;
+
+      body.querySelector("#edit-wk-title")?.addEventListener("input", (e) => {
+        draft.title = e.target.value;
+      });
+      body.querySelectorAll("[data-edit-wt]").forEach((inp) => {
+        inp.addEventListener("input", () => {
+          const [ei, si] = inp.dataset.editWt.split(":").map(Number);
+          draft.exercises[ei].sets[si].weight = inp.value;
+        });
+      });
+      body.querySelectorAll("[data-edit-rp]").forEach((inp) => {
+        inp.addEventListener("input", () => {
+          const [ei, si] = inp.dataset.editRp.split(":").map(Number);
+          draft.exercises[ei].sets[si].reps = inp.value;
+        });
+      });
+      body.querySelectorAll("[data-edit-type]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const [ei, si] = btn.dataset.editType.split(":").map(Number);
+          const order = ["", "W", "D", "F"];
+          const cur = draft.exercises[ei].sets[si].type || "";
+          draft.exercises[ei].sets[si].type = order[(order.indexOf(cur) + 1) % order.length];
+          renderEditor();
+        });
+      });
+      body.querySelectorAll("[data-edit-del-set]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const [ei, si] = btn.dataset.editDelSet.split(":").map(Number);
+          draft.exercises[ei].sets.splice(si, 1);
+          renderEditor();
+        });
+      });
+      body.querySelectorAll("[data-edit-add-set]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const ei = Number(btn.dataset.editAddSet);
+          const prev = draft.exercises[ei].sets.at(-1);
+          draft.exercises[ei].sets.push({
+            weight: prev ? prev.weight : "0",
+            reps: prev ? prev.reps : "10",
+            type: "",
+            completed: true
+          });
+          renderEditor();
+        });
+      });
+      body.querySelectorAll("[data-edit-rem-ex]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          draft.exercises.splice(Number(btn.dataset.editRemEx), 1);
+          renderEditor();
+        });
+      });
+      body.querySelector("#btn-edit-wk-add-ex")?.addEventListener("click", () => {
+        const exId = body.querySelector("#edit-wk-add-ex-select")?.value;
+        if (!exId) return;
+        draft.exercises.push({
+          exerciseId: exId,
+          note: "",
+          rpe: null,
+          sets: [{ weight: "0", reps: "10", type: "", completed: true }]
+        });
+        renderEditor();
+      });
+      body.querySelector("#btn-edit-wk-cancel")?.addEventListener("click", () => {
+        closeModal("modal-edit-workout");
+      });
+      body.querySelector("#btn-edit-wk-save")?.addEventListener("click", () => {
+        const cleaned = draft.exercises
+          .map((item) => ({
+            exerciseId: item.exerciseId,
+            note: item.note || "",
+            rpe: item.rpe ?? null,
+            sets: item.sets
+              .filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0)
+              .map((s) => ({
+                weight: getUnit() === "lb" ? displayToKg(s.weight) : (Number(s.weight) || 0),
+                reps: Number(s.reps) || 0,
+                type: s.type || "",
+                completed: true
+              }))
+          }))
+          .filter((item) => item.sets.length > 0);
+
+        if (!cleaned.length) {
+          alert("Keep at least one set with weight or reps.");
+          return;
+        }
+        orig.title = (draft.title || "").trim() || "Workout";
+        orig.exercises = cleaned;
+        saveState();
+        closeModal("modal-edit-workout");
+        switchView(currentView);
+        openWorkoutDetail(orig.id);
+      });
+    };
+
+    renderEditor();
+    openModal("modal-edit-workout");
+  }
+
   function openWorkoutDetail(workoutId) {
     const w = state.workouts.find((item) => item.id === workoutId);
     if (!w) return;
@@ -5089,10 +5540,15 @@
         })
         .join("")}
       <div class="btn-row">
-        <button id="btn-view-wk-summary" class="btn btn-primary" type="button" style="flex:1;">Summary Card</button>
-        <button id="btn-save-as-routine" class="btn btn-secondary" type="button" style="flex:1;">Save as Routine</button>
+        <button id="btn-edit-past-workout" class="btn btn-primary" type="button" style="flex:1;">Edit Workout</button>
+        <button id="btn-view-wk-summary" class="btn btn-secondary" type="button" style="flex:1;">Summary Card</button>
+        <button id="btn-save-as-routine" class="btn btn-ghost" type="button" style="flex:1;">Save Routine</button>
       </div>
     `;
+    document.getElementById("btn-edit-past-workout").addEventListener("click", () => {
+      closeModal("modal-workout-detail");
+      openEditWorkoutModal(w.id);
+    });
     document.getElementById("btn-view-wk-summary").addEventListener("click", () => {
       closeModal("modal-workout-detail");
       openWorkoutSummaryModal(w, []);
