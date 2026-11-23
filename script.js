@@ -1024,7 +1024,16 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     };
   }
 
-  let state = loadState();
+  let storageStatus = {
+    status: "ok",
+    backupKey: null,
+    rawCorrupt: null,
+    error: null,
+    recoveryRequired: false,
+    lastSaveError: null
+  };
+  let saveToastTimer = null;
+  let state = null;
   let currentView = "dashboard";
   let currentDashPreset = "overview";
   let currentSide = "front";
@@ -1056,15 +1065,6 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   let activeFormExercise = null;
   let formGuidesOn = true;
   let formMistakeOn = false;
-
-  let storageStatus = {
-    status: "ok",
-    backupKey: null,
-    rawCorrupt: null,
-    error: null,
-    recoveryRequired: false,
-    lastSaveError: null
-  };
 
   function loadState() {
     const res = loadStateSafe(localStorage, createDefaultState, DEFAULT_EXERCISES);
@@ -1175,7 +1175,6 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     return true;
   }
 
-  let saveToastTimer = null;
   function showSavedToast() {
     const el = document.getElementById("app-save-indicator");
     if (!el) return;
@@ -6216,6 +6215,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   }
 
   /* ---------------- INIT ---------------- */
+  state = loadState();
   registerServiceWorker();
   initAmbientBackground();
   applyVisualTone();
