@@ -1,37 +1,8 @@
-import {
-  kgToDisplay as coreKgToDisplay,
-  displayToKg as coreDisplayToKg,
-  formatWeight as coreFormatWeight,
-  roundGymWeight
-} from "./js/core/units.js";
-import {
-  STORAGE_KEY,
-  loadStateSafe,
-  saveStateSafe,
-  buildImportPreview,
-  commitImport
-} from "./js/core/storage.js";
-import { finalizeActiveWorkout, isWorkingCompletedSet } from "./js/core/workout-normalization.js";
-import {
-  computeSet1RM,
-  getHistoricalBest1RM as coreGetHistoricalBest1RM,
-  computeWorkoutTotals,
-  computeWindowKpis,
-  computePersonalRecords,
-  buildWeeklyVolumeSeries,
-  buildStrengthSeries
-} from "./js/core/workout-metrics.js";
-import {
-  computeMuscleStats as coreComputeMuscleStats,
-  getHeatLevel,
-  getRecoveryState
-} from "./js/core/muscle-metrics.js";
-import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/progression.js";
-
 (() => {
   "use strict";
 
   const APP_VERSION = "v7.1";
+  const STORAGE_KEY = "musclemap_v1_state";
 
   const CHANGELOG = [
     {
@@ -1057,102 +1028,46 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   let formGuidesOn = true;
   let formMistakeOn = false;
 
-  let storageStatus = {
-    status: "ok",
-    backupKey: null,
-    rawCorrupt: null,
-    error: null,
-    recoveryRequired: false,
-    lastSaveError: null
-  };
-
-  function loadState() {
-    const res = loadStateSafe(localStorage, createDefaultState, DEFAULT_EXERCISES);
-    storageStatus = {
-      status: res.status,
-      backupKey: res.backupKey,
-      rawCorrupt: res.rawCorrupt,
-      error: res.error,
-      recoveryRequired: res.status === "recovery_required",
-      lastSaveError: null
-    };
-    return res.state;
+  function mergeById(existing, incoming) {
+    const map = new Map(existing.map((item) => [item.id, item]));
+    incoming.forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    return Array.from(map.values());
   }
 
-  function renderStorageAlert() {
-    const el = document.getElementById("app-storage-alert");
-    if (!el) return;
-
-    if (storageStatus.recoveryRequired) {
-      el.classList.remove("hidden");
-      el.innerHTML = `
-        <div>
-          <span class="eyebrow" style="color:var(--primary);">Recovery Required · Original Data Preserved</span>
-          <strong>Saved data could not be parsed and LocalStorage had no space for a backup copy.</strong>
-          <div class="muted-note">Auto-save is paused so your original data is not overwritten. Export the raw data or reset manually.</div>
-        </div>
-        <div class="btn-row">
-          <button id="btn-storage-download-raw" class="btn btn-primary btn-sm" type="button">Download Raw Backup</button>
-          <button id="btn-storage-dismiss-recovery" class="btn btn-danger-ghost btn-sm" type="button">Reset Storage</button>
-        </div>
-      `;
-      document.getElementById("btn-storage-download-raw")?.addEventListener("click", () => {
-        const raw = storageStatus.rawCorrupt ?? localStorage.getItem(STORAGE_KEY) ?? "";
-        const blob = new Blob([raw], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `musclemap_corrupt_raw_${new Date().toISOString().slice(0, 10)}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-      });
-      document.getElementById("btn-storage-dismiss-recovery")?.addEventListener("click", () => {
-        if (confirm("Clear corrupted storage and resume saving with a fresh state?")) {
-          storageStatus.recoveryRequired = false;
-          storageStatus.status = "ok";
-          saveState();
-          renderStorageAlert();
-        }
-      });
-      return;
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return createDefaultState();
+      const parsed = JSON.parse(raw);
+      const base = createDefaultState();
+      return {
+        ...base,
+        ...parsed,
+        profiles: parsed.profiles?.length ? parsed.profiles : base.profiles,
+        bodyProfiles: { ...base.bodyProfiles, ...(parsed.bodyProfiles || {}) },
+        settings: {
+          u1: { ...base.settings.u1, ...(parsed.settings?.u1 || {}) },
+          u2: { ...base.settings.u2, ...(parsed.settings?.u2 || {}) },
+          ...(parsed.settings || {})
+        },
+        dashboardPrefs: {
+          u1: { ...base.dashboardPrefs.u1, ...(parsed.dashboardPrefs?.u1 || {}) },
+          u2: { ...base.dashboardPrefs.u2, ...(parsed.dashboardPrefs?.u2 || {}) },
+          ...(parsed.dashboardPrefs || {})
+        },
+        exercises: mergeById(DEFAULT_EXERCISES, parsed.exercises || []),
+        routines: Array.isArray(parsed.routines)
+          ? { u1: parsed.routines, u2: [] }
+          : { ...base.routines, ...(parsed.routines || {}) },
+        workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
+        measurements: Array.isArray(parsed.measurements) ? parsed.measurements : [],
+        activeWorkouts: { ...base.activeWorkouts, ...(parsed.activeWorkouts || {}) }
+      };
+    } catch {
+      return createDefaultState();
     }
-
-    if (storageStatus.status === "recovered" && storageStatus.backupKey) {
-      el.classList.remove("hidden");
-      el.innerHTML = `
-        <div>
-          <span class="eyebrow">Corrupt Data Quarantined</span>
-          <strong>Previous browser data was invalid and backed up safely.</strong>
-          <div class="muted-note">Backup key: <code>${escapeHtml(storageStatus.backupKey)}</code></div>
-        </div>
-        <button id="btn-storage-ack-recovered" class="btn btn-secondary btn-sm" type="button">Dismiss</button>
-      `;
-      document.getElementById("btn-storage-ack-recovered")?.addEventListener("click", () => {
-        storageStatus.status = "ok";
-        renderStorageAlert();
-      });
-      return;
-    }
-
-    if (storageStatus.lastSaveError) {
-      el.classList.remove("hidden");
-      const msg =
-        storageStatus.lastSaveError.reason === "quota_exceeded"
-          ? "Browser LocalStorage is full — export a JSON backup and clear old backups to keep saving."
-          : "Could not write to browser LocalStorage.";
-      el.innerHTML = `
-        <div>
-          <span class="eyebrow" style="color:var(--primary);">Persistence Failure</span>
-          <strong>${escapeHtml(msg)}</strong>
-        </div>
-        <button id="btn-storage-export-emergency" class="btn btn-primary btn-sm" type="button">Export JSON</button>
-      `;
-      document.getElementById("btn-storage-export-emergency")?.addEventListener("click", exportJson);
-      return;
-    }
-
-    el.classList.add("hidden");
-    el.innerHTML = "";
   }
 
   function saveState() {
@@ -1160,19 +1075,9 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     if (active) {
       active.lastSavedAt = new Date().toISOString();
     }
-    const res = saveStateSafe(localStorage, state, {
-      recoveryRequired: storageStatus.recoveryRequired
-    });
-    if (!res.ok) {
-      storageStatus.lastSaveError = res;
-      renderStorageAlert();
-      return false;
-    }
-    storageStatus.lastSaveError = null;
-    renderStorageAlert();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     updateAutosaveIndicator();
     showSavedToast();
-    return true;
   }
 
   let saveToastTimer = null;
@@ -1204,15 +1109,21 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   }
 
   function kgToDisplay(kg) {
-    return coreKgToDisplay(kg, getUnit());
+    const n = Number(kg) || 0;
+    if (getUnit() === "lb") return Math.round(n * 2.20462 * 2) / 2;
+    return Math.round(n * 10) / 10;
   }
 
   function displayToKg(val) {
-    return coreDisplayToKg(val, getUnit());
+    const n = Number(val) || 0;
+    if (getUnit() === "lb") return Math.round((n / 2.20462) * 100) / 100;
+    return n;
   }
 
   function fmtWt(kg) {
-    return coreFormatWeight(kg, getUnit());
+    const u = getUnit();
+    const val = kgToDisplay(kg);
+    return `${val} ${u}`;
   }
 
   function updateOfflineStatus() {
@@ -1279,11 +1190,10 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       const found = w.exercises.find((e) => e.exerciseId === exerciseId);
       if (found && found.sets.length) {
         const preview = found.sets
-          .filter((s) => isWorkingCompletedSet(s, w.schemaVersion == null))
           .slice(0, 3)
-          .map((s) => `${fmtWt(s.weight)}×${s.reps}`)
+          .map((s) => `${s.weight}kg×${s.reps}`)
           .join(", ");
-        if (preview) return `Last (${formatDate(w.endedAt)}): ${preview}`;
+        return `Last (${formatDate(w.endedAt)}): ${preview}`;
       }
     }
     return "";
@@ -1415,24 +1325,22 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       id: uid("wk"),
       title: day.title,
       planDayIdx: dayIdx,
-      weightUnit: "kg",
       startedAt: new Date().toISOString(),
       exercises: day.exercises.map((id, idx) => {
         const overload = getOverloadSuggestion(id);
-        const wKg = overload && overload.weightKg > 0 ? String(overload.weightKg) : "";
-        const warmupKg = overload && overload.weightKg > 0 ? String(Math.max(5, Math.round(overload.weightKg * 0.6))) : "";
+        const w = overload && overload.weight > 0 ? String(kgToDisplay(overload.weight)) : "";
         const r = overload ? String(overload.reps) : "10";
         const sets = idx === 0
           ? [
-              { weight: warmupKg, reps: "8", type: "W", status: "planned", completed: false },
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false },
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false },
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false }
+              { weight: w ? String(Math.max(5, Math.round(Number(w) * 0.6))) : "", reps: "8", type: "W", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false }
             ]
           : [
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false },
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false },
-              { weight: wKg, reps: r, type: "", status: "planned", completed: false }
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false },
+              { weight: w, reps: r, type: "", completed: false }
             ];
         return { exerciseId: id, sets };
       })
@@ -1560,6 +1468,13 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     return w > 0 ? w : null;
   }
 
+  function roundGymWeight(kg, equipment) {
+    if (equipment === "Barbell" || equipment === "Machine") {
+      return Math.max(5, Math.round(kg / 2.5) * 2.5);
+    }
+    const step = kg >= 12 ? 2 : 1;
+    return Math.max(2, Math.round(kg / step) * step);
+  }
 
   function getExerciseWeightTiers(ex, profileId = state.activeProfileId) {
     const bw = getUserEffectiveWeight(profileId);
@@ -2736,31 +2651,120 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
 
   /* ---------------- PROGRESSIVE OVERLOAD ASSISTANT ---------------- */
   function getHistoricalBest1RM(exerciseId) {
-    return coreGetHistoricalBest1RM(exerciseId, getProfileWorkouts(state.activeProfileId));
+    let best = 0;
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    for (const w of workouts) {
+      const match = w.exercises.find((e) => e.exerciseId === exerciseId);
+      if (!match) continue;
+      for (const s of match.sets) {
+        if (s.type === "W") continue;
+        const weight = Number(s.weight) || 0;
+        const reps = Number(s.reps) || 0;
+        if (weight > 0 && reps > 0) {
+          const est = weight * (1 + reps / 30);
+          if (est > best) best = est;
+        }
+      }
+    }
+    return best;
   }
 
   function getOverloadSuggestion(exerciseId) {
-    const sug = coreGetOverloadSuggestion(exerciseId, getProfileWorkouts(state.activeProfileId));
-    if (!sug) return null;
-    let label = "";
-    if (sug.lastWeightKg > 0 && sug.readyToIncrease) {
-      label = `Last: ${fmtWt(sug.lastWeightKg)} × ${sug.lastReps} · Ready for ${fmtWt(sug.weightKg)} × ${sug.reps}`;
-    } else if (sug.lastWeightKg > 0) {
-      const stepLabel = getUnit() === "lb" ? "5 lb" : "2.5 kg";
-      label = `Last: ${fmtWt(sug.lastWeightKg)} × ${sug.lastReps} · Try ${fmtWt(sug.weightKg)} × ${sug.reps} (at 12, add ${stepLabel})`;
-    } else {
-      label = `Target: ${sug.reps} reps (+1 rep)`;
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    for (const w of workouts) {
+      const match = w.exercises.find((e) => e.exerciseId === exerciseId);
+      if (!match || !match.sets.length) continue;
+      const validSets = match.sets.filter((s) => s.type !== "W" && (Number(s.reps) > 0 || Number(s.weight) > 0));
+      if (!validSets.length) continue;
+
+      const topSet = validSets.reduce((best, s) => {
+        const bw = Number(best.weight) || 0;
+        const sw = Number(s.weight) || 0;
+        if (sw > bw) return s;
+        if (sw === bw && (Number(s.reps) || 0) > (Number(best.reps) || 0)) return s;
+        return best;
+      }, validSets[0]);
+
+      const lastW = Number(topSet.weight) || 0;
+      const lastR = Number(topSet.reps) || 0;
+      if (lastW > 0 && lastR >= 12) {
+        return {
+          weight: Number((lastW + 2.5).toFixed(2)),
+          reps: 8,
+          label: `Last: ${fmtWt(lastW)} × ${lastR} · Ready for ${fmtWt(lastW + 2.5)} × 8`
+        };
+      }
+      if (lastW > 0) {
+        const nextR = Math.min(12, lastR + 1);
+        return {
+          weight: lastW,
+          reps: nextR,
+          label: `Last: ${fmtWt(lastW)} × ${lastR} · Try ${fmtWt(lastW)} × ${nextR} (at 12, add 2.5 kg)`
+        };
+      }
+      return {
+        weight: 0,
+        reps: lastR + 1,
+        label: `Target: ${lastR + 1} reps (+1 rep)`
+      };
     }
-    return {
-      ...sug,
-      weight: sug.weightKg,
-      label
-    };
+    return null;
   }
 
   /* ---------------- MUSCLE STIMULUS ENGINE ---------------- */
   function computeMuscleStats(profileId, windowDays) {
-    return coreComputeMuscleStats(getProfileWorkouts(profileId), MUSCLES, getExerciseById, windowDays);
+    const stats = {};
+    Object.keys(MUSCLES).forEach((m) => {
+      stats[m] = { weightedSets: 0, volume: 0, lastTrained: null };
+    });
+
+    const cutoff =
+      windowDays === "all" ? 0 : Date.now() - Number(windowDays) * 24 * 60 * 60 * 1000;
+
+    const workouts = getProfileWorkouts(profileId);
+    for (const w of workouts) {
+      const wTime = new Date(w.endedAt).getTime();
+      if (wTime < cutoff) continue;
+
+      for (const item of w.exercises) {
+        const ex = getExerciseById(item.exerciseId);
+        if (!ex) continue;
+
+        const workingSets = item.sets.filter((s) => s.type !== "W" && s.completed !== false && (Number(s.reps) > 0 || Number(s.weight) > 0));
+        if (!workingSets.length) continue;
+
+        const setCount = workingSets.length;
+        const exVolume = workingSets.reduce((sum, s) => sum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0);
+
+        for (const m of ex.primary) {
+          if (!stats[m]) continue;
+          stats[m].weightedSets += setCount * 1.0;
+          stats[m].volume += exVolume * 1.0;
+          if (!stats[m].lastTrained || wTime > new Date(stats[m].lastTrained).getTime()) {
+            stats[m].lastTrained = w.endedAt;
+          }
+        }
+        for (const m of ex.secondary) {
+          if (!stats[m]) continue;
+          stats[m].weightedSets += setCount * 0.5;
+          stats[m].volume += exVolume * 0.5;
+          if (!stats[m].lastTrained || wTime > new Date(stats[m].lastTrained).getTime()) {
+            stats[m].lastTrained = w.endedAt;
+          }
+        }
+      }
+    }
+    return stats;
+  }
+
+  function getHeatLevel(weightedSets, windowDays) {
+    if (weightedSets <= 0) return 0;
+    const scale = windowDays === "7" ? 1 : windowDays === "30" ? 3 : 5;
+    const norm = weightedSets / scale;
+    if (norm < 3) return 1;
+    if (norm < 7) return 2;
+    if (norm < 12) return 3;
+    return 4;
   }
 
   function getSuggestedDay(profileId) {
@@ -3446,13 +3450,20 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     const cutoff7 = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const recent7 = allWorkouts.filter((w) => new Date(w.endedAt).getTime() >= cutoff7);
 
-    const kpis7 = computeWindowKpis(recent7);
-    const totalSets = kpis7.workingSets;
-    const totalVol = kpis7.volumeKg;
+    let totalSets = 0;
+    let totalVol = 0;
+    recent7.forEach((w) => {
+      w.exercises.forEach((ex) => {
+        ex.sets.forEach((s) => {
+          totalSets += 1;
+          totalVol += (Number(s.weight) || 0) * (Number(s.reps) || 0);
+        });
+      });
+    });
 
     renderTodayCoach(profile, allWorkouts, recent7);
     document.getElementById("kpi-workouts-7d").textContent = String(recent7.length);
-    document.getElementById("kpi-volume-7d").textContent = fmtWt(totalVol);
+    document.getElementById("kpi-volume-7d").textContent = `${Math.round(totalVol).toLocaleString()} kg`;
     document.getElementById("kpi-sets-7d").textContent = String(totalSets);
 
     const streak = computeTrainingStreak(profile.id);
@@ -3492,16 +3503,14 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
 
     const prMap = new Map();
     allWorkouts.forEach((w) => {
-      const legacy = w.schemaVersion == null;
       w.exercises.forEach((item) => {
         const ex = getExerciseById(item.exerciseId);
         if (!ex) return;
         item.sets.forEach((s) => {
-          if (!isWorkingCompletedSet(s, legacy)) return;
           const weight = Number(s.weight) || 0;
           const reps = Number(s.reps) || 0;
           if (weight <= 0 || reps <= 0) return;
-          const est1RM = computeSet1RM(weight, reps);
+          const est1RM = weight * (1 + reps / 30);
           const prev = prMap.get(ex.id);
           if (!prev || est1RM > prev.est1RM) {
             prMap.set(ex.id, { name: ex.name, est1RM, weight, reps, date: w.endedAt });
@@ -3581,7 +3590,10 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     } else {
       feed.innerHTML = userWorkouts
         .map((w) => {
-          const vol = computeWorkoutTotals(w).workingVolumeKg;
+          const vol = w.exercises.reduce(
+            (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+            0
+          );
           return `
             <div class="card" data-open-workout="${w.id}" style="cursor:pointer;">
               <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -3589,7 +3601,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
                 <span class="muted-note">${formatDate(w.endedAt)}</span>
               </div>
               <div class="muted-note" style="margin-top:4px;">
-                ${w.exercises.length} exercises • ${fmtWt(vol)}
+                ${w.exercises.length} exercises • ${Math.round(vol).toLocaleString()} kg
               </div>
             </div>`;
         })
@@ -3609,7 +3621,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         .map(([key, val]) => `
           <div class="muscle-ex-item">
             <strong>${MUSCLES[key]}</strong>
-            <span class="muted-note">${val.weightedSets.toFixed(1).replace(/\.0$/, "")} sets · ${fmtWt(val.volume)}</span>
+            <span class="muted-note">${val.weightedSets.toFixed(1).replace(/\.0$/, "")} sets · ${Math.round(val.volume).toLocaleString()} kg</span>
           </div>`
         )
         .join("");
@@ -3625,9 +3637,9 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
           <div class="muscle-ex-item">
             <div>
               <strong>${escapeHtml(pr.name)}</strong>
-              <div class="muted-note">${fmtWt(pr.weight)} × ${pr.reps} · ${formatDate(pr.date)}</div>
+              <div class="muted-note">${pr.weight} kg × ${pr.reps} · ${formatDate(pr.date)}</div>
             </div>
-            <span class="badge badge-primary">${fmtWt(pr.est1RM)} 1RM</span>
+            <span class="badge badge-primary">${Math.round(pr.est1RM)} kg 1RM</span>
           </div>`
         )
         .join("");
@@ -3691,6 +3703,14 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   }
 
   /* ---------------- ANATOMICAL HEATMAP ---------------- */
+  function getRecoveryState(lastTrainedIso) {
+    if (!lastTrainedIso) return { className: "heat-rec-rested", label: "Rested (Not trained recently)" };
+    const hours = (Date.now() - new Date(lastTrainedIso).getTime()) / (1000 * 60 * 60);
+    if (hours < 24) return { className: "heat-rec-fatigued", label: `Fatigued (${Math.round(hours)}h ago)` };
+    if (hours < 48) return { className: "heat-rec-recovering", label: `Recovering (${Math.round(hours)}h ago)` };
+    if (hours <= 96) return { className: "heat-rec-fresh", label: `Fresh (${Math.round(hours / 24)}d ago)` };
+    return { className: "heat-rec-rested", label: `Rested (${Math.round(hours / 24)}d ago)` };
+  }
 
   function renderBalancePanel(stats) {
     const el = document.getElementById("anatomy-balance-panel");
@@ -3825,7 +3845,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       el.innerHTML = `
         <span class="eyebrow">Volume Leaders (${currentWindow === "all" ? "ALL" : currentWindow + "D"})</span>
         ${top.length
-          ? top.map(([m, v]) => `<div class="muscle-ex-item"><strong>${MUSCLES[m]}</strong><span class="muted-note">${fmtWt(v.volume)}</span></div>`).join("")
+          ? top.map(([m, v]) => `<div class="muscle-ex-item"><strong>${MUSCLES[m]}</strong><span class="muted-note">${Math.round(v.volume).toLocaleString()} kg</span></div>`).join("")
           : `<div class="muted-note">No volume logged in this window.</div>`}
       `;
     } else if (currentAnatomyTab === "frequency") {
@@ -3877,7 +3897,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     filterBtn.classList.remove("hidden");
 
     document.getElementById("muscle-stat-sets").textContent = s.weightedSets.toFixed(1).replace(/\.0$/, "");
-    document.getElementById("muscle-stat-volume").textContent = fmtWt(s.volume);
+    document.getElementById("muscle-stat-volume").textContent = `${Math.round(s.volume).toLocaleString()} kg`;
     document.getElementById("muscle-stat-last").textContent = s.lastTrained ? formatDate(s.lastTrained) : "Never";
 
     const matching = state.exercises.filter(
@@ -4158,8 +4178,11 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
 
     const computeIsPR = (s, histBest1RM) => {
       if (s.type === "W") return false;
-      const set1RM = computeSet1RM(s.weight, s.reps);
-      return set1RM > 0 && (histBest1RM === 0 || set1RM > histBest1RM);
+      const wNum = Number(s.weight) || 0;
+      const rNum = Number(s.reps) || 0;
+      if (wNum <= 0 || rNum <= 0) return false;
+      const set1RM = wNum * (1 + rNum / 30);
+      return histBest1RM === 0 || set1RM > histBest1RM;
     };
 
     container.innerHTML = active.exercises
@@ -4176,14 +4199,13 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
             const setType = s.type || "";
             const typeLabel = setType || String(setIdx + 1);
             const typeTitle = setType === "W" ? "Warmup (excluded from stats)" : setType === "D" ? "Drop set" : setType === "F" ? "Failure set" : "Working set (tap to cycle W/D/F)";
-            const dispWt = s.weight === "" || s.weight == null ? "" : String(kgToDisplay(s.weight));
             return `
               <div class="set-row ${setType === "W" ? "warmup-row" : ""}" data-set-row="${exIdx}:${setIdx}">
                 <span class="set-num">
                   <button class="set-type-btn ${setType ? `type-${setType}` : ""}" type="button" title="${typeTitle}" data-cycle-type="${exIdx}:${setIdx}">${typeLabel}</button>
                   <span class="pr-badge ${isPR ? "" : "hidden"}" data-pr-badge="${exIdx}:${setIdx}">PR!</span>
                 </span>
-                <input class="set-input" type="number" step="0.5" min="0" placeholder="${getUnit()}" value="${dispWt}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
+                <input class="set-input" type="number" step="0.5" min="0" placeholder="${getUnit()}" value="${s.weight}" data-ex="${exIdx}" data-set="${setIdx}" data-field="weight" />
                 <input class="set-input" type="number" min="0" placeholder="reps" value="${s.reps}" data-ex="${exIdx}" data-set="${setIdx}" data-field="reps" />
                 <button class="set-check ${s.completed ? "done" : ""}" type="button" data-toggle-set="${exIdx}:${setIdx}">✓</button>
                 <button class="set-del" type="button" data-del-set="${exIdx}:${setIdx}">&times;</button>
@@ -4259,7 +4281,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         if (!overload) return;
         exItem.sets.forEach((s) => {
           if (!s.completed && s.type !== "W") {
-            if (overload.weightKg > 0) s.weight = String(overload.weightKg);
+            if (overload.weight > 0) s.weight = String(overload.weight);
             s.reps = String(overload.reps);
           }
         });
@@ -4311,11 +4333,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         const setIdx = Number(set);
         const exItem = active.exercises[exIdx];
         const setObj = exItem.sets[setIdx];
-        if (field === "weight") {
-          setObj.weight = inp.value === "" ? "" : String(displayToKg(inp.value));
-        } else {
-          setObj[field] = inp.value;
-        }
+        setObj[field] = inp.value;
         saveState();
         const badge = container.querySelector(`[data-pr-badge="${exIdx}:${setIdx}"]`);
         if (badge) {
@@ -4340,14 +4358,13 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
           } else {
             const overload = getOverloadSuggestion(exItem.exerciseId);
             if (overload) {
-              if (overload.weightKg > 0) setObj.weight = String(overload.weightKg);
+              if (overload.weight > 0) setObj.weight = String(overload.weight);
               setObj.reps = String(overload.reps);
             }
           }
         }
 
         setObj.completed = nextCompleted;
-        setObj.status = nextCompleted ? "completed" : "planned";
         saveState();
         if (nextCompleted && getProfileSettings().autoRest) {
           startRestTimer(getProfileSettings().defaultRestSec || 90);
@@ -4505,20 +4522,27 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   }
 
   function getWorkoutSummaryMetrics(workout) {
-    const totals = computeWorkoutTotals(workout);
-    const legacy = workout.schemaVersion == null;
+    const durationMs = workout.startedAt && workout.endedAt
+      ? Math.max(0, new Date(workout.endedAt).getTime() - new Date(workout.startedAt).getTime())
+      : 0;
+    let workingSets = 0;
+    let totalVolume = 0;
     const muscleWeights = new Map();
     const exBreakdown = [];
 
     (workout.exercises || []).forEach((item) => {
       const ex = getExerciseById(item.exerciseId);
-      const sets = (item.sets || []).filter((s) => isWorkingCompletedSet(s, legacy));
+      const sets = (item.sets || []).filter((s) => s.type !== "W" && (Number(s.reps) > 0 || Number(s.weight) > 0));
       if (!sets.length) return;
+      workingSets += sets.length;
       const vol = sets.reduce((sum, s) => sum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0);
+      totalVolume += vol;
       let bestSet = sets[0];
       let best1RM = 0;
       sets.forEach((s) => {
-        const est = computeSet1RM(s.weight, s.reps);
+        const w = Number(s.weight) || 0;
+        const r = Number(s.reps) || 0;
+        const est = w > 0 && r > 0 ? w * (1 + r / 30) : 0;
         if (est >= best1RM) {
           best1RM = est;
           bestSet = s;
@@ -4528,7 +4552,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         name: ex ? ex.name : "Exercise",
         setsCount: sets.length,
         volume: vol,
-        topSetLabel: `${fmtWt(bestSet.weight)} × ${Number(bestSet.reps) || 0}`
+        topSetLabel: `${Number(bestSet.weight) || 0} kg × ${Number(bestSet.reps) || 0}`
       });
       if (ex) {
         (ex.primary || []).forEach((m) => muscleWeights.set(m, (muscleWeights.get(m) || 0) + sets.length));
@@ -4540,13 +4564,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       .sort((a, b) => b[1] - a[1])
       .map(([m, w]) => ({ key: m, label: MUSCLES[m] || m, sets: w }));
 
-    return {
-      durationMs: totals.durationMs,
-      workingSets: totals.workingSets,
-      totalVolume: totals.workingVolumeKg,
-      muscles,
-      exBreakdown
-    };
+    return { durationMs, workingSets, totalVolume, muscles, exBreakdown };
   }
 
   function downloadWorkoutSummaryPng(workout, newPRs = []) {
@@ -4597,7 +4615,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     const kpis = [
       { label: "DURATION", val: m.durationMs > 0 ? formatDuration(m.durationMs) : "—" },
       { label: "WORKING SETS", val: String(m.workingSets) },
-      { label: "TOTAL VOLUME", val: fmtWt(m.totalVolume) },
+      { label: "TOTAL VOLUME", val: `${Math.round(m.totalVolume).toLocaleString()} kg` },
       { label: "NEW 1RM PRS", val: String(newPRs.length) }
     ];
     kpis.forEach((k, idx) => {
@@ -4634,7 +4652,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       newPRs.slice(0, 3).forEach((pr) => {
         ctx.fillStyle = "#F0F1F1";
         ctx.font = "600 14px 'Space Grotesk', sans-serif";
-        ctx.fillText(`★ ${pr.name}: ${fmtWt(pr.weightKg)} × ${pr.reps} (${fmtWt(pr.est1RMKg)} 1RM)`, 64, curY);
+        ctx.fillText(`★ ${pr.name}: ${pr.weight} kg × ${pr.reps} (${Math.round(pr.est1RM)} kg 1RM)`, 64, curY);
         curY += 22;
       });
       curY += 10;
@@ -4650,7 +4668,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       ctx.fillText(ex.name.slice(0, 36), 64, curY);
       ctx.fillStyle = "#A0A7AA";
       ctx.font = "500 13px 'IBM Plex Mono', monospace";
-      ctx.fillText(`${ex.setsCount} sets · Top ${ex.topSetLabel} · ${fmtWt(ex.volume)}`, 380, curY);
+      ctx.fillText(`${ex.setsCount} sets · Top ${ex.topSetLabel} · ${Math.round(ex.volume).toLocaleString()} kg`, 380, curY);
       curY += 24;
     });
 
@@ -4678,7 +4696,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         <div class="kpi-grid">
           <div class="kpi-box"><span class="kpi-label">Duration</span><strong class="kpi-value">${m.durationMs > 0 ? formatDuration(m.durationMs) : "—"}</strong></div>
           <div class="kpi-box"><span class="kpi-label">Working Sets</span><strong class="kpi-value">${m.workingSets}</strong></div>
-          <div class="kpi-box"><span class="kpi-label">Total Volume</span><strong class="kpi-value">${fmtWt(m.totalVolume)}</strong></div>
+          <div class="kpi-box"><span class="kpi-label">Total Volume</span><strong class="kpi-value">${Math.round(m.totalVolume).toLocaleString()} kg</strong></div>
         </div>
         ${
           newPRs.length
@@ -4687,7 +4705,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
                 <div class="card-stack" style="margin-top:6px;">
                   ${newPRs
                     .map(
-                      (pr) => `<div class="muscle-ex-item"><strong>${escapeHtml(pr.name)}</strong><span class="badge badge-primary">${fmtWt(pr.weightKg)} × ${pr.reps} · ${fmtWt(pr.est1RMKg)} 1RM</span></div>`
+                      (pr) => `<div class="muscle-ex-item"><strong>${escapeHtml(pr.name)}</strong><span class="badge badge-primary">${pr.weight} kg × ${pr.reps} · ${Math.round(pr.est1RM)} kg 1RM</span></div>`
                     )
                     .join("")}
                 </div>
@@ -4709,7 +4727,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
           <div class="card-stack">
             ${m.exBreakdown
               .map(
-                (ex) => `<div class="muscle-ex-item"><span><strong>${escapeHtml(ex.name)}</strong></span><span class="muted-note">${ex.setsCount} sets · ${escapeHtml(ex.topSetLabel)} · ${fmtWt(ex.volume)}</span></div>`
+                (ex) => `<div class="muscle-ex-item"><span><strong>${escapeHtml(ex.name)}</strong></span><span class="muted-note">${ex.setsCount} sets · ${escapeHtml(ex.topSetLabel)} · ${Math.round(ex.volume).toLocaleString()} kg</span></div>`
               )
               .join("")}
           </div>
@@ -4757,25 +4775,66 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     const active = getActiveWorkout();
     if (!active) return;
 
-    const title = document.getElementById("workout-title-input").value.trim() || "Workout";
-    const finalized = finalizeActiveWorkout(active, {
-      title,
-      profileId: state.activeProfileId,
-      weightsAreCanonicalKg: active.weightUnit === "kg"
-    });
+    const cleanedExercises = active.exercises
+      .map((item) => ({
+        exerciseId: item.exerciseId,
+        note: (item.note || "").trim(),
+        rpe: item.rpe ? Number(item.rpe) : null,
+        sets: item.sets
+          .filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0)
+          .map((s) => ({
+            weight: Number(s.weight) || 0,
+            reps: Number(s.reps) || 0,
+            type: s.type || "",
+            completed: true
+          }))
+      }))
+      .filter((item) => item.sets.length > 0);
 
-    if (!finalized.ok) {
-      alert("Check off at least one completed set (✓) before saving.");
+    if (!cleanedExercises.length) {
+      alert("Log at least one set with weight or reps before saving.");
       return;
     }
 
-    const savedWorkout = finalized.workout;
-    const newPRs = computePersonalRecords(
-      savedWorkout.exercises,
-      getProfileWorkouts(state.activeProfileId),
-      getExerciseById
-    );
+    const newPRs = [];
+    cleanedExercises.forEach((item) => {
+      const ex = getExerciseById(item.exerciseId);
+      if (!ex) return;
+      const histBest = getHistoricalBest1RM(item.exerciseId);
+      let bestSet = null;
+      let best1RM = histBest;
+      item.sets.forEach((s) => {
+        if (s.type === "W") return;
+        const w = Number(s.weight) || 0;
+        const r = Number(s.reps) || 0;
+        if (w <= 0 || r <= 0) return;
+        const est = w * (1 + r / 30);
+        if (est > best1RM) {
+          best1RM = est;
+          bestSet = s;
+        }
+      });
+      if (bestSet && best1RM > histBest) {
+        newPRs.push({ name: ex.name, weight: bestSet.weight, reps: bestSet.reps, est1RM: best1RM });
+      }
+    });
 
+    const savedWorkout = {
+      id: active.id,
+      profileId: state.activeProfileId,
+      title: document.getElementById("workout-title-input").value.trim() || "Workout",
+      startedAt: active.startedAt,
+      endedAt: new Date().toISOString(),
+      exercises: cleanedExercises
+    };
+    // Convert displayed lb inputs back to stored kg if unit is lb
+    if (getUnit() === "lb") {
+      savedWorkout.exercises.forEach((item) => {
+        item.sets.forEach((s) => {
+          s.weight = displayToKg(s.weight);
+        });
+      });
+    }
     state.workouts.push(savedWorkout);
     const sObj = getProfileSettings();
     if (sObj.plan && sObj.plan.days && sObj.plan.days.length) {
@@ -4992,12 +5051,39 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     const canvas = document.getElementById("chart-weekly-trend");
     if (!canvas) return;
 
-    const unit = getUnit();
-    const weeks = buildWeeklyVolumeSeries(
-      getProfileWorkouts(state.activeProfileId),
-      unit,
-      coreKgToDisplay
-    );
+    const getMonday = (d) => {
+      const copy = new Date(d);
+      const day = copy.getDay();
+      const diff = copy.getDate() - day + (day === 0 ? -6 : 1);
+      copy.setDate(diff);
+      copy.setHours(0, 0, 0, 0);
+      return copy;
+    };
+
+    const thisMonday = getMonday(new Date());
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const start = new Date(thisMonday.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      weeks.push({
+        startMs: start.getTime(),
+        endMs: start.getTime() + 7 * 24 * 60 * 60 * 1000,
+        label: start.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        volume: 0
+      });
+    }
+
+    const workouts = getProfileWorkouts(state.activeProfileId);
+    workouts.forEach((w) => {
+      const t = new Date(w.endedAt).getTime();
+      const bucket = weeks.find((wk) => t >= wk.startMs && t < wk.endMs);
+      if (!bucket) return;
+      w.exercises.forEach((ex) => {
+        ex.sets.forEach((s) => {
+          if (s.type === "W") return;
+          bucket.volume += (Number(s.weight) || 0) * (Number(s.reps) || 0);
+        });
+      });
+    });
 
     if (charts.weeklyTrend) charts.weeklyTrend.destroy();
     const ctx = canvas.getContext("2d");
@@ -5007,8 +5093,8 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         labels: weeks.map((w) => w.label),
         datasets: [
           {
-            label: `Weekly Volume (${unit})`,
-            data: weeks.map((w) => w.displayVolume),
+            label: "Weekly Volume (kg)",
+            data: weeks.map((w) => Math.round(w.volume)),
             borderColor: "#C52F3A",
             backgroundColor: "rgba(197, 47, 58, 0.15)",
             fill: true,
@@ -5058,11 +5144,14 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
       byDay.get(key).push(w);
       if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
         monthSessions += 1;
-        monthVol += computeWorkoutTotals(w).workingVolumeKg;
+        monthVol += w.exercises.reduce(
+          (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+          0
+        );
       }
     });
 
-    summaryEl.textContent = `${monthSessions} session${monthSessions === 1 ? "" : "s"} · ${fmtWt(monthVol)} volume this month`;
+    summaryEl.textContent = `${monthSessions} session${monthSessions === 1 ? "" : "s"} · ${Math.round(monthVol).toLocaleString()} kg volume this month`;
 
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
     const startOffset = (firstOfMonth.getDay() + 6) % 7; // Mon=0..Sun=6
@@ -5109,14 +5198,17 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     } else {
       detailEl.innerHTML = dayList
         .map((w) => {
-          const vol = computeWorkoutTotals(w).workingVolumeKg;
+          const vol = w.exercises.reduce(
+            (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (Number(s.weight) || 0) * (Number(s.reps) || 0), 0),
+            0
+          );
           return `
             <div class="card" data-open-workout="${w.id}" style="cursor:pointer;">
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <strong>${escapeHtml(w.title)}</strong>
                 <span class="muted-note">${activeKey}</span>
               </div>
-              <div class="muted-note" style="margin-top:4px;">${w.exercises.length} exercises · ${fmtWt(vol)}</div>
+              <div class="muted-note" style="margin-top:4px;">${w.exercises.length} exercises · ${Math.round(vol).toLocaleString()} kg</div>
             </div>`;
         })
         .join("");
@@ -5175,15 +5267,21 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   function renderStrengthChart() {
     if (typeof Chart === "undefined") return;
     const exId = document.getElementById("analytics-exercise-select").value;
-    const unit = getUnit();
-    const points = buildStrengthSeries(
-      getProfileWorkouts(state.activeProfileId),
-      exId,
-      unit,
-      coreKgToDisplay
-    );
-    const labels = points.map((pt) => formatDate(pt.endedAt));
-    const data = points.map((pt) => pt.display1RM);
+    const workouts = [...getProfileWorkouts(state.activeProfileId)].reverse();
+
+    const labels = [];
+    const data = [];
+    workouts.forEach((w) => {
+      const match = w.exercises.find((e) => e.exerciseId === exId);
+      if (!match) return;
+      const best1RM = Math.max(
+        ...match.sets.map((s) => (Number(s.weight) || 0) * (1 + (Number(s.reps) || 0) / 30))
+      );
+      if (best1RM > 0) {
+        labels.push(formatDate(w.endedAt));
+        data.push(Math.round(best1RM * 10) / 10);
+      }
+    });
 
     if (charts.strength) charts.strength.destroy();
     const ctx = document.getElementById("chart-strength-progress").getContext("2d");
@@ -5193,7 +5291,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
         labels: labels.length ? labels : ["No sessions"],
         datasets: [
           {
-            label: `Est. 1RM (${unit})`,
+            label: "Est. 1RM (kg)",
             data: data.length ? data : [0],
             borderColor: "#C52F3A",
             backgroundColor: "rgba(197, 47, 58, 0.15)",
@@ -5225,7 +5323,11 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
 
     list.innerHTML = workouts
       .map((w) => {
-        const totals = computeWorkoutTotals(w);
+        const setsCount = w.exercises.reduce((s, e) => s + e.sets.length, 0);
+        const vol = w.exercises.reduce(
+          (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + s.weight * s.reps, 0),
+          0
+        );
         return `
           <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -5233,7 +5335,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
               <button class="btn btn-danger-ghost btn-sm" type="button" data-del-wk="${w.id}">Delete</button>
             </div>
             <div class="muted-note" style="margin-top:4px;cursor:pointer;" data-view-wk="${w.id}">
-              ${formatDate(w.endedAt)} • ${w.exercises.length} exercises • ${totals.workingSets} sets • ${fmtWt(totals.workingVolumeKg)}
+              ${formatDate(w.endedAt)} • ${w.exercises.length} exercises • ${setsCount} sets • ${Math.round(vol).toLocaleString()} kg
             </div>
           </div>`;
       })
@@ -5432,12 +5534,7 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
             <div class="card">
               <strong>${escapeHtml(ex ? ex.name : "Exercise")}</strong>
               <div class="muted-note" style="margin-top:4px;">
-                ${item.sets
-                  .map((s, i) => {
-                    const skipped = s.status === "skipped" || s.completed === false;
-                    return `Set ${i + 1}: ${fmtWt(s.weight)} × ${s.reps}${skipped ? " (skipped)" : ""}`;
-                  })
-                  .join(" · ")}
+                ${item.sets.map((s, i) => `Set ${i + 1}: ${s.weight} kg × ${s.reps}`).join(" · ")}
               </div>
             </div>`;
         })
@@ -5635,102 +5732,27 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
     URL.revokeObjectURL(url);
   }
 
-  function openImportPreviewModal(importedRaw, preview) {
-    const body = document.getElementById("import-preview-body");
-    if (!body) return;
-    const c = preview.counts;
-    const cf = preview.conflicts;
-    const conflictCount =
-      cf.profileConflicts.length +
-      cf.exerciseConflicts.length +
-      cf.routineConflicts.length +
-      cf.settingsConflicts.length +
-      cf.activeWorkoutConflicts.length;
-
-    body.innerHTML = `
-      <div class="kpi-grid">
-        <div class="kpi-box"><span class="kpi-label">Profiles</span><strong class="kpi-value">${c.profiles}</strong></div>
-        <div class="kpi-box"><span class="kpi-label">New Workouts</span><strong class="kpi-value">${c.newWorkouts}</strong></div>
-        <div class="kpi-box"><span class="kpi-label">Duplicates</span><strong class="kpi-value">${c.duplicateWorkouts}</strong></div>
-      </div>
-      <div class="card">
-        <strong>Conflict Summary (${conflictCount})</strong>
-        <ul class="changelog-ul" style="margin-top:6px;">
-          <li>Profile ID conflicts: ${cf.profileConflicts.length}</li>
-          <li>Exercise ID conflicts: ${cf.exerciseConflicts.length}</li>
-          <li>Routine ID conflicts: ${cf.routineConflicts.length}</li>
-          <li>Profile settings overlaps: ${cf.settingsConflicts.length}</li>
-          <li>Active workout overlaps: ${cf.activeWorkoutConflicts.length}</li>
-          ${cf.unknownTopKeys.length ? `<li>Preserved unknown fields: ${escapeHtml(cf.unknownTopKeys.join(", "))}</li>` : ""}
-        </ul>
-      </div>
-      <div class="form-stack">
-        <button id="btn-import-merge-keep" class="btn btn-primary" type="button">Merge (Keep Existing on Conflict)</button>
-        <button id="btn-import-merge-overwrite" class="btn btn-secondary" type="button">Merge (Overwrite Conflicts)</button>
-        <button id="btn-import-restore" class="btn btn-danger-ghost" type="button">Full Restore (Replace Current State)</button>
-      </div>
-    `;
-
-    const applyChoice = (mode, conflictPolicy) => {
-      const res = commitImport(state, importedRaw, {
-        mode,
-        conflictPolicy,
-        expectedFingerprint: preview.baseFingerprint,
-        storage: localStorage,
-        requireBackupForDestructive: true,
-        createDefaultState,
-        defaultExercises: DEFAULT_EXERCISES
-      });
-      if (!res.ok) {
-        if (res.reason === "stale_preview") {
-          alert("Your local state changed after this import preview was opened. Refreshing preview now.");
-          const freshPreview = buildImportPreview(state, importedRaw);
-          if (freshPreview.valid) openImportPreviewModal(importedRaw, freshPreview);
-          return;
-        }
-        if (res.reason === "backup_failed") {
-          alert("Import aborted: could not write a safety backup to LocalStorage before replacing existing data.");
-          return;
-        }
-        alert(res.error?.message || "Import failed.");
-        return;
-      }
-      state = res.nextState;
-      storageStatus.recoveryRequired = false;
-      saveState();
-      applyVisualTone();
-      renderHeader();
-      renderProfileModal();
-      switchView(currentView);
-      closeModal("modal-import-preview");
-      alert(
-        mode === "restore"
-          ? `Backup restored (${res.summary.workoutsTotal} workouts).`
-          : `Backup merged: ${res.summary.addedWorkouts} new workout(s) added.`
-      );
-    };
-
-    document.getElementById("btn-import-merge-keep")?.addEventListener("click", () => applyChoice("merge", "keep_existing"));
-    document.getElementById("btn-import-merge-overwrite")?.addEventListener("click", () => applyChoice("merge", "overwrite"));
-    document.getElementById("btn-import-restore")?.addEventListener("click", () => {
-      if (confirm("Replace your current state with the imported backup?")) {
-        applyChoice("restore", "overwrite");
-      }
-    });
-    openModal("modal-import-preview");
-  }
-
   function importJson(file) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const imported = JSON.parse(reader.result);
-        const preview = buildImportPreview(state, imported);
-        if (!preview.valid) {
-          alert(preview.error || "Invalid MUSCLEMAP backup file.");
+        if (!Array.isArray(imported.workouts) || !Array.isArray(imported.profiles)) {
+          alert("Invalid MUSCLEMAP backup file.");
           return;
         }
-        openImportPreviewModal(imported, preview);
+        state.exercises = mergeById(state.exercises, imported.exercises || []);
+        state.workouts = mergeById(state.workouts, imported.workouts || []);
+        state.measurements = mergeById(state.measurements, imported.measurements || []);
+        if (imported.routines && !Array.isArray(imported.routines)) {
+          state.routines.u1 = mergeById(state.routines.u1 || [], imported.routines.u1 || []);
+          state.routines.u2 = mergeById(state.routines.u2 || [], imported.routines.u2 || []);
+        }
+        saveState();
+        renderHeader();
+        renderProfileModal();
+        switchView(currentView);
+        alert("Backup merged safely without overwriting existing records.");
       } catch {
         alert("Could not parse JSON file.");
       }
@@ -6219,7 +6241,6 @@ import { getOverloadSuggestion as coreGetOverloadSuggestion } from "./js/core/pr
   registerServiceWorker();
   initAmbientBackground();
   applyVisualTone();
-  renderStorageAlert();
   updateOfflineStatus();
   renderHeader();
   bindEvents();
