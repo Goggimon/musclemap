@@ -1,9 +1,15 @@
-const CACHE_NAME = "musclemap-v7.1";
+const CACHE_NAME = "musclemap-v8.0-tranche1";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
+  "./js/core/units.js",
+  "./js/core/storage.js",
+  "./js/core/workout-normalization.js",
+  "./js/core/workout-metrics.js",
+  "./js/core/muscle-metrics.js",
+  "./js/core/progression.js",
   "./manifest.json",
   "./icon.svg"
 ];

@@ -42,6 +42,7 @@
 
     <!-- Main Scrollable Content -->
     <main class="main-content">
+      <div id="app-storage-alert" class="card recovery-banner hidden" role="alert" style="margin-bottom:16px;"></div>
       <!-- 1. DASHBOARD VIEW (3 FOCUSED PRESETS) -->
       <section id="view-dashboard" class="view active">
         <div class="dash-top-bar">
@@ -1296,6 +1297,20 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <!-- MODAL: JSON Import Preview & Conflict Resolution -->
+  <div id="modal-import-preview" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="import-preview-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow" style="margin-bottom:2px;">BACKUP PREVIEW</span>
+          <h3 id="import-preview-title">Review Import &amp; Conflicts</h3>
+        </div>
+        <button class="close-modal btn-icon" type="button" data-close="modal-import-preview">&times;</button>
+      </div>
+      <div id="import-preview-body" class="form-stack"></div>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
